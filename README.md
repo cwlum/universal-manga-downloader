@@ -2,6 +2,7 @@
 ![Version](https://img.shields.io/badge/version-1.0.0-orange)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--07--13-informational)
+
 A simple GUI application to download manga chapters from the Bato.to website.
 
 ## Features
