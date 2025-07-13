@@ -1,8 +1,6 @@
 # Bato 漫畫下載器 (v2.1)
 
 ![Version](https://img.shields.io/badge/version-2.1.0-blue)
-![License](https://img.shields.io/badge/license-MIT-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025-07-13-informational)
 
 一個專為漫畫愛好者設計的簡單圖形化工具，可以輕鬆從 Bato.to 網站下載漫畫章節，並自動合併成一個 PDF 檔案，方便離線閱讀和收藏。
 
