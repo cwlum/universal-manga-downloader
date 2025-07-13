@@ -152,7 +152,13 @@ class MangaDownloader(tk.Tk):
             self.update_idletasks()
 
             # --- Create PDF ---
-            image_files = sorted([os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'bmp'))])
+            # Add 'webp' to the list of supported image formats
+            supported_formats = ('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp')
+            image_files = sorted([
+                os.path.join(download_dir, f) 
+                for f in os.listdir(download_dir) 
+                if f.lower().endswith(supported_formats)
+            ])
 
             if image_files:
                 try:
