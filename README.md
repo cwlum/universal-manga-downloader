@@ -1,7 +1,6 @@
 # Bato Manga Downloader (v2.1)
 
 ![Version](https://img.shields.io/badge/version-2.1.0-blue)
-![License](https://img.shields.io/badge/license-MIT-yellow)
 
 A simple GUI tool designed for manga enthusiasts to easily download chapters from Bato.to and automatically convert them into a single PDF file, perfect for offline reading and archiving.
 
