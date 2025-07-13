@@ -1,35 +1,23 @@
 # Bato Downloader
-![Version](https://img.shields.io/badge/version-1.0.0-orange)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--07--13-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025-07-13-informational)
 
-A simple GUI application to download manga chapters from the Bato.to website.
+A simple, user-friendly GUI application to download manga chapters from Bato.to and automatically convert them into a single PDF file.
 
 ## Features
 
--   Easy-to-use graphical user interface.
--   Just paste the chapter URL and click download.
--   Automatically creates a named folder for each chapter.
--   Saves images in sequential order for easy reading.
--   Cross-platform (should work on macOS, Windows, and Linux).
+-   **Zero-Setup Installation**: The script automatically installs any missing required libraries on first run.
+-   **Automatic PDF Conversion**: Downloads all chapter images and instantly merges them into a single, convenient PDF file.
+-   **Easy-to-use GUI**: Just paste the chapter URL and click download.
+-   **Organized Downloads**: Automatically creates a named folder for each chapter in your "Downloads" directory.
+-   **Cross-platform**: Works on macOS, Windows, and Linux.
 
-## Installation
+## Requirements
 
-This application requires Python 3. Before running, you need to install a few dependencies.
+-   [Python 3](https://www.python.org/downloads/)
 
-1.  **Install required Python libraries:**
-
-    Open your terminal or command prompt and run:
-    ```bash
-    pip install requests beautifulsoup4
-    ```
-
-2.  **(macOS Only) Install Tkinter:**
-
-    If you are on macOS and encounter a `ModuleNotFoundError: No module named '_tkinter'` error, it means your Python installation is missing the necessary GUI toolkit. You can install it with Homebrew by running:
-    ```bash
-    brew install python-tk
-    ```
+That's it! The script handles the installation of all other dependencies.
 
 ## Usage
 
@@ -37,10 +25,11 @@ This application requires Python 3. Before running, you need to install a few de
     ```bash
     python3 manga_downloader.py
     ```
-2.  A window will appear. Paste the full URL of a Bato.to manga chapter into the input box.
-    -   Example URL: `https://zbato.org/title/160779/2901842`
-3.  Click the "Download" button.
-4.  The application will show the download progress. Once finished, the images will be saved in a new folder inside your system's "Downloads" directory.
+2.  On the first run, the script may take a moment to download and install necessary libraries. You will see progress messages in the terminal.
+3.  Once the window appears, paste the full URL of a Bato.to manga chapter into the input box.
+    -   Example URL: `https://bato.to/chapter/123456`
+4.  Click the "Download" button.
+5.  The application will show the download progress. Once finished, the images and the final PDF will be saved in a new folder inside your system's "Downloads" directory.
 
 ## License
 

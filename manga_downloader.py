@@ -1,13 +1,43 @@
 
 import tkinter as tk
 from tkinter import ttk, filedialog
+import subprocess
+import sys
+import os
+
+# --- Auto-install required packages ---
+def install_and_import(package, import_name=None):
+    if import_name is None:
+        import_name = package
+    try:
+        __import__(import_name)
+    except ImportError:
+        print(f"{package} not found. Installing...")
+        try:
+            # Add --break-system-packages to handle PEP 668 externally managed environments
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--break-system-packages"])
+            print(f"{package} installed successfully.")
+            __import__(import_name)
+        except Exception as e:
+            print(f"Failed to install {package}. Please install it manually using: python -m pip install {package}")
+            print(f"Error: {e}")
+            sys.exit(1)
+
+# Check and install packages
+install_and_import("requests")
+install_and_import("beautifulsoup4", "bs4")
+install_and_import("Pillow", "PIL")
+
+
+# --- Now import everything else ---
 import requests
 from bs4 import BeautifulSoup
 import re
 import json
-import os
 import threading
 from urllib.parse import urlparse
+from PIL import Image
+
 
 class MangaDownloader(tk.Tk):
     def __init__(self):
@@ -118,7 +148,35 @@ class MangaDownloader(tk.Tk):
                     print(f"Failed to download {img_url}: {e}")
                     continue
 
-            self.status_label.config(text=f"Status: Download complete! Saved to {download_dir}")
+            self.status_label.config(text="Status: Download complete. Now creating PDF...")
+            self.update_idletasks()
+
+            # --- Create PDF ---
+            image_files = sorted([os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.lower().endswith(('png', 'jpg', 'jpeg', 'gif', 'bmp'))])
+
+            if image_files:
+                try:
+                    pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
+                    
+                    # Open the first image
+                    img1 = Image.open(image_files[0]).convert('RGB')
+                    
+                    # Create a list of other images
+                    other_images = []
+                    if len(image_files) > 1:
+                        for img_path in image_files[1:]:
+                            img = Image.open(img_path).convert('RGB')
+                            other_images.append(img)
+
+                    # Save as PDF
+                    img1.save(pdf_path, "PDF" ,resolution=100.0, save_all=True, append_images=other_images)
+
+                    self.status_label.config(text=f"Status: PDF created successfully! Saved to {pdf_path}")
+                except Exception as e:
+                    self.status_label.config(text=f"Status: Error creating PDF: {e}")
+            else:
+                self.status_label.config(text="Status: No images found to create PDF.")
+
 
         except requests.RequestException as e:
             self.status_label.config(text=f"Status: Error - Failed to fetch URL: {e}")
@@ -128,5 +186,7 @@ class MangaDownloader(tk.Tk):
         self.download_button.config(state="normal")
 
 if __name__ == "__main__":
+    # The package check happens right after the initial imports
+    # so by the time we get here, all dependencies should be ready.
     app = MangaDownloader()
     app.mainloop()
