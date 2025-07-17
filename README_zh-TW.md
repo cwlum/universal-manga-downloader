@@ -1,8 +1,7 @@
 # 通用漫畫下載器 (v3.0)
 
-![Version](https://img.shields.io/badge/version-3.0.0-purple)
-![License](https://img.shields.io/badge/license-MIT-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025-07-16-informational)
+![Version](https://img.shields.io/badge/version-3.1.0-purple)
+![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 
 一個可擴充、使用者友善的圖形化工具，可以從多個網站下載漫畫章節，並自動轉換成單一的 PDF 檔案。
 
@@ -74,4 +73,13 @@
 
 ## 授權
 
-本專案採用 MIT 授權。詳情請見 [LICENSE](LICENSE) 檔案。
+本專案採用 [Creative Commons 姓名標示-非商業性-相同方式分享 4.0 國際 (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/deed.zh_TW) 授權條款。
+
+簡單來說，您可以自由地：
+-   **分享** — 以任何媒介或格式重製及散布本資料。
+-   **修改** — 重混、轉換本資料、及依本資料建立新資料。
+
+惟需遵照下列條件：
+-   **姓名標示** — 您必須給予適當表彰。
+-   **非商業性** — 您不得將本資料用於商業目的。
+-   **相同方式分享** — 若您重混、轉換、或依本資料建立新資料，則必須以與原始資料相同的授權條款散布您的貢獻物。

@@ -1,8 +1,7 @@
 # Universal Manga Downloader (v3.0)
 
-![Version](https://img.shields.io/badge/version-3.0.0-purple)
-![License](https://img.shields.io/badge/license-MIT-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025-07-16-informational)
+![Version](https://img.shields.io/badge/version-3.1.0-purple)
+![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
 
@@ -74,4 +73,13 @@ This tool's strength is its modularity. To support a new website, you don't need
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+In short, you are free to:
+-   **Share** — copy and redistribute the material in any medium or format.
+-   **Adapt** — remix, transform, and build upon the material.
+
+Under the following terms:
+-   **Attribution** — You must give appropriate credit.
+-   **NonCommercial** — You may not use the material for commercial purposes.
+-   **ShareAlike** — If you remix, transform, or build upon the material, you must distribute your contributions under the same license as the original.
