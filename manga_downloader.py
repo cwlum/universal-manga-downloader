@@ -85,14 +85,36 @@ class MangaDownloader(tk.Tk):
 
             soup = BeautifulSoup(html_content, 'html.parser')
 
-            # --- Extract Title and Chapter ---
-            title_tag = soup.find('a', href=re.compile(r'/title/\d+'))
-            title = title_tag.text.strip() if title_tag else "Manga"
-            title = re.sub(r'[^a-zA-Z0-9_.-]', '_', title) # Sanitize title
+            # --- Extract Title and Chapter (Dual-Method) ---
+            title = "Manga"
+            chapter = "Chapter"
 
-            chapter_info = soup.find('h6', class_='text-lg')
-            chapter = chapter_info.text.strip() if chapter_info else "Chapter"
-            chapter = re.sub(r'[^a-zA-Z0-9_.-]', '_', chapter) # Sanitize chapter
+            # Method 1: Old structure
+            title_tag_old = soup.find('a', href=re.compile(r'/title/\d+'))
+            chapter_info_old = soup.find('h6', class_='text-lg')
+            if title_tag_old and chapter_info_old:
+                title = title_tag_old.text.strip()
+                chapter = chapter_info_old.text.strip()
+            
+            # Method 2: New structure (fallback)
+            else:
+                title_tag_new = soup.find('a', href=re.compile(r'/series/\d+'))
+                if title_tag_new:
+                    title = title_tag_new.text.strip()
+
+                # For the chapter, find the selected option in the dropdown
+                try:
+                    chapter_id = url.strip('/').split('/')[-1]
+                    chapter_option = soup.find('option', {'value': chapter_id})
+                    if chapter_option:
+                        chapter = chapter_option.text.strip()
+                except (IndexError, AttributeError):
+                    # If parsing fails, stick to the default
+                    pass
+
+            # Sanitize titles
+            title = re.sub(r'[^a-zA-Z0-9_.-]', '_', title)
+            chapter = re.sub(r'[^a-zA-Z0-9_.-]', '_', chapter)
 
             # --- Create Directory ---
             download_dir = os.path.join(os.path.expanduser("~"), "Downloads", f"{title}_{chapter}")
