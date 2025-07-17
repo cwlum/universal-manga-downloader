@@ -99,19 +99,28 @@ class MangaDownloader(tk.Tk):
             os.makedirs(download_dir, exist_ok=True)
 
             # --- Extract Image URLs ---
+            image_urls = []
+            
+            # Method 1: Try the 'astro-island' method first (for older page structures)
             astro_island = soup.find('astro-island', {'component-url': re.compile(r'ImageList')})
-            if not astro_island:
-                self.status_label.config(text="Status: Error - Could not find image list.")
-                self.download_button.config(state="normal")
-                return
+            if astro_island:
+                props_str = astro_island.get('props', '{}')
+                props_json = json.loads(props_str.replace('"', '"'))
+                image_files_str = props_json.get('imageFiles', [0, '[]'])[1]
+                image_urls = [img[1] for img in json.loads(image_files_str)]
 
-            props_str = astro_island.get('props', '{}')
-            props_json = json.loads(props_str.replace('&quot;', '"'))
-            image_files_str = props_json.get('imageFiles', [0, '[]'])[1]
-            image_urls = [img[1] for img in json.loads(image_files_str)]
+            # Method 2: Fallback to script tag parsing (for newer page structures like zbato.org)
+            if not image_urls:
+                script_tag = soup.find('script', string=re.compile(r'const imgHttps ='))
+                if script_tag:
+                    script_content = script_tag.string
+                    match = re.search(r'const imgHttps = (\[.*?\]);', script_content)
+                    if match:
+                        json_str = match.group(1)
+                        image_urls = json.loads(json_str)
 
             if not image_urls:
-                self.status_label.config(text="Status: Error - No images found on the page.")
+                self.status_label.config(text="Status: Error - Could not find image list.")
                 self.download_button.config(state="normal")
                 return
 
