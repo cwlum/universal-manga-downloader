@@ -27,10 +27,12 @@ def install_and_import(package, import_name=None):
 install_and_import("requests")
 install_and_import("beautifulsoup4", "bs4")
 install_and_import("Pillow", "PIL")
+install_and_import("cloudscraper")
 
 
 # --- Now import everything else ---
 import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 import re
 import json
@@ -75,8 +77,9 @@ class MangaDownloader(tk.Tk):
             return
 
         try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'}
-            response = requests.get(url, headers=headers)
+            # Use cloudscraper to bypass Cloudflare
+            scraper = cloudscraper.create_scraper()
+            response = scraper.get(url)
             response.raise_for_status()
             html_content = response.text
 
@@ -117,7 +120,8 @@ class MangaDownloader(tk.Tk):
             self.progress["maximum"] = total_images
             for i, img_url in enumerate(image_urls):
                 try:
-                    img_response = requests.get(img_url, headers=headers)
+                    # Use the same scraper session to download images
+                    img_response = scraper.get(img_url)
                     img_response.raise_for_status()
 
                     # Get file extension
