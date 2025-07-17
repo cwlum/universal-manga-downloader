@@ -1,9 +1,11 @@
-
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk
 import subprocess
 import sys
 import os
+import threading
+import re
+from urllib.parse import urlparse
 
 # --- Auto-install required packages ---
 def install_and_import(package, import_name=None):
@@ -14,7 +16,6 @@ def install_and_import(package, import_name=None):
     except ImportError:
         print(f"{package} not found. Installing...")
         try:
-            # Add --break-system-packages to handle PEP 668 externally managed environments
             subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--break-system-packages"])
             print(f"{package} installed successfully.")
             __import__(import_name)
@@ -29,22 +30,18 @@ install_and_import("beautifulsoup4", "bs4")
 install_and_import("Pillow", "PIL")
 install_and_import("cloudscraper")
 
-
 # --- Now import everything else ---
 import requests
 import cloudscraper
 from bs4 import BeautifulSoup
-import re
-import json
-import threading
-from urllib.parse import urlparse
 from PIL import Image
+from parsers import ALL_PARSERS
 
 
 class MangaDownloader(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Bato.to Manga Downloader")
+        self.title("Universal Manga Downloader")
         self.geometry("500x250")
 
         self.url_label = ttk.Label(self, text="Manga Chapter URL:")
@@ -77,100 +74,52 @@ class MangaDownloader(tk.Tk):
             return
 
         try:
-            # Use cloudscraper to bypass Cloudflare
             scraper = cloudscraper.create_scraper()
             response = scraper.get(url)
             response.raise_for_status()
             html_content = response.text
-
             soup = BeautifulSoup(html_content, 'html.parser')
 
-            # --- Extract Title and Chapter (Dual-Method) ---
-            title = "Manga"
-            chapter = "Chapter"
-
-            # Method 1: Old structure
-            title_tag_old = soup.find('a', href=re.compile(r'/title/\d+'))
-            chapter_info_old = soup.find('h6', class_='text-lg')
-            if title_tag_old and chapter_info_old:
-                title = title_tag_old.text.strip()
-                chapter = chapter_info_old.text.strip()
+            # --- Modular Parsing Engine ---
+            parsed_data = None
+            for parser in ALL_PARSERS:
+                self.status_label.config(text=f"Status: Trying parser {parser.get_name()}...")
+                self.update_idletasks()
+                if parser.can_parse(soup, url):
+                    parsed_data = parser.parse(soup, url)
+                    if parsed_data:
+                        self.status_label.config(text=f"Status: Parsed successfully with {parser.get_name()}!")
+                        self.update_idletasks()
+                        break
             
-            # Method 2: New structure (fallback)
-            else:
-                title_tag_new = soup.find('a', href=re.compile(r'/series/\d+'))
-                if title_tag_new:
-                    title = title_tag_new.text.strip()
+            if not parsed_data:
+                self.status_label.config(text="Status: Error - No suitable parser found for this URL.")
+                self.download_button.config(state="normal")
+                return
 
-                # For the chapter, find the selected option in the dropdown
-                try:
-                    chapter_id = url.strip('/').split('/')[-1]
-                    chapter_option = soup.find('option', {'value': chapter_id})
-                    if chapter_option:
-                        chapter = chapter_option.text.strip()
-                except (IndexError, AttributeError):
-                    # If parsing fails, stick to the default
-                    pass
-
-            # Sanitize titles
-            title = re.sub(r'[^a-zA-Z0-9_.-]', '_', title)
-            chapter = re.sub(r'[^a-zA-Z0-9_.-]', '_', chapter)
+            title = parsed_data['title']
+            chapter = parsed_data['chapter']
+            image_urls = parsed_data['image_urls']
 
             # --- Create Directory ---
             download_dir = os.path.join(os.path.expanduser("~"), "Downloads", f"{title}_{chapter}")
             os.makedirs(download_dir, exist_ok=True)
-
-            # --- Extract Image URLs ---
-            image_urls = []
-            
-            # Method 1: Try the 'astro-island' method first (for older page structures)
-            astro_island = soup.find('astro-island', {'component-url': re.compile(r'ImageList')})
-            if astro_island:
-                props_str = astro_island.get('props', '{}')
-                props_json = json.loads(props_str.replace('"', '"'))
-                image_files_str = props_json.get('imageFiles', [0, '[]'])[1]
-                image_urls = [img[1] for img in json.loads(image_files_str)]
-
-            # Method 2: Fallback to script tag parsing (for newer page structures like zbato.org)
-            if not image_urls:
-                script_tag = soup.find('script', string=re.compile(r'const imgHttps ='))
-                if script_tag:
-                    script_content = script_tag.string
-                    match = re.search(r'const imgHttps = (\[.*?\]);', script_content)
-                    if match:
-                        json_str = match.group(1)
-                        image_urls = json.loads(json_str)
-
-            if not image_urls:
-                self.status_label.config(text="Status: Error - Could not find image list.")
-                self.download_button.config(state="normal")
-                return
 
             # --- Download Images ---
             total_images = len(image_urls)
             self.progress["maximum"] = total_images
             for i, img_url in enumerate(image_urls):
                 try:
-                    # Use the same scraper session to download images
                     img_response = scraper.get(img_url)
                     img_response.raise_for_status()
-
-                    # Get file extension
+                    
                     parsed_url = urlparse(img_url)
                     filename, file_ext = os.path.splitext(os.path.basename(parsed_url.path))
                     if not file_ext:
-                        # Guess extension from content type
                         content_type = img_response.headers.get('content-type')
-                        if content_type:
-                            ext_match = re.search(r'image/(\w+)', content_type)
-                            if ext_match:
-                                file_ext = f".{ext_match.group(1)}"
-                            else:
-                                file_ext = ".jpg" # Default
-                        else:
-                            file_ext = ".jpg"
+                        ext_match = re.search(r'image/(\w+)', content_type) if content_type else None
+                        file_ext = f".{ext_match.group(1)}" if ext_match else ".jpg"
 
-                    # Save file
                     file_path = os.path.join(download_dir, f"{i+1:03d}{file_ext}")
                     with open(file_path, 'wb') as f:
                         f.write(img_response.content)
@@ -187,7 +136,6 @@ class MangaDownloader(tk.Tk):
             self.update_idletasks()
 
             # --- Create PDF ---
-            # Add 'webp' to the list of supported image formats
             supported_formats = ('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp')
             image_files = sorted([
                 os.path.join(download_dir, f) 
@@ -196,28 +144,20 @@ class MangaDownloader(tk.Tk):
             ])
 
             if image_files:
-                try:
-                    pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
-                    
-                    # Open the first image
-                    img1 = Image.open(image_files[0]).convert('RGB')
-                    
-                    # Create a list of other images
-                    other_images = []
-                    if len(image_files) > 1:
-                        for img_path in image_files[1:]:
-                            img = Image.open(img_path).convert('RGB')
-                            other_images.append(img)
-
-                    # Save as PDF
-                    img1.save(pdf_path, "PDF" ,resolution=100.0, save_all=True, append_images=other_images)
-
-                    self.status_label.config(text=f"Status: PDF created successfully! Saved to {pdf_path}")
-                except Exception as e:
-                    self.status_label.config(text=f"Status: Error creating PDF: {e}")
+                pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
+                
+                images_to_save = [Image.open(f).convert('RGB') for f in image_files]
+                
+                if images_to_save:
+                    images_to_save[0].save(
+                        pdf_path, "PDF", resolution=100.0, save_all=True, 
+                        append_images=images_to_save[1:]
+                    )
+                    self.status_label.config(text=f"Status: PDF created! Saved to {pdf_path}")
+                else:
+                    self.status_label.config(text="Status: No valid images found to create PDF.")
             else:
                 self.status_label.config(text="Status: No images found to create PDF.")
-
 
         except requests.RequestException as e:
             self.status_label.config(text=f"Status: Error - Failed to fetch URL: {e}")
@@ -227,7 +167,5 @@ class MangaDownloader(tk.Tk):
         self.download_button.config(state="normal")
 
 if __name__ == "__main__":
-    # The package check happens right after the initial imports
-    # so by the time we get here, all dependencies should be ready.
     app = MangaDownloader()
     app.mainloop()
