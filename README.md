@@ -46,7 +46,7 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 #### Step 3: Copy, Paste, and Download
 1.  The GUI window will appear. (It may pause on first run to auto-install libraries).
-2.  Copy a manga **chapter** URL from a supported site (currently Bato.to and its mirrors).
+2.  Copy a manga **chapter** URL from a supported site (e.g., Bato.to, comick.fun).
 3.  Paste the URL into the input box and click "Download".
 4.  The app will find a suitable parser, download the images, and save the final PDF in your system's "Downloads" folder.
 
