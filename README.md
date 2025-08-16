@@ -1,4 +1,4 @@
-# Universal Manga Downloader (v3.0)
+# Universal Manga Downloader (v3.1)
 
 ![Version](https://img.shields.io/badge/version-3.1.0-purple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
