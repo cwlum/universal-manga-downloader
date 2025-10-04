@@ -9,6 +9,13 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 ---
 
+## What's New
+
+-   **Bato.si compatibility restored** – the `Bato_V3` parser now understands the latest Qwik-powered page format (it decodes the embedded base36 token map to recover image URLs), so tricky chapters such as [OMORI Official ch. 10](https://bato.si/title/160779-en-omori-official/3735107-ch_10) download again without manual work.
+-   **Parser modules runnable as scripts** – every parser still loads dynamically inside the app, but you can now execute `python3 parsers/bato_v3_parser.py` directly while developing to debug its output.
+
+---
+
 ## Key Features
 
 -   ✅ **Modular Parser Engine**: Intelligently cycles through available parsers to find one that works for the given URL. Highly extensible for future websites.

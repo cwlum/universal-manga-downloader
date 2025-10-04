@@ -75,6 +75,7 @@ class MangaDownloader(tk.Tk):
 
         try:
             scraper = cloudscraper.create_scraper()
+            print(f"Fetching URL: {url}")
             response = scraper.get(url)
             response.raise_for_status()
             html_content = response.text
