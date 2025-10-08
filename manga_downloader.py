@@ -1,11 +1,12 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 import subprocess
 import sys
 import os
 import threading
 import re
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Auto-install required packages ---
 def install_and_import(package, import_name=None):
@@ -50,8 +51,33 @@ class MangaDownloader(tk.Tk):
         self.search_results = []
         self.series_data = None
         self.series_chapters = []
+        self.queue_lock = threading.Lock()
+        self.chapter_executor_lock = threading.Lock()
+        self.pending_downloads = 0
+        self.active_downloads = 0
+        self.chapter_executor = None
+        self._chapter_executor_workers = None
+
+        self.chapter_workers_var = tk.IntVar(value=1)
+        self.image_workers_var = tk.IntVar(value=4)
+        self.range_start_var = tk.StringVar()
+        self.range_end_var = tk.StringVar()
+        self.queue_status_var = tk.StringVar(value="Queue: idle")
+        self.download_dir_var = tk.StringVar(value=self._get_default_download_root())
+        self.download_dir_path = self.download_dir_var.get()
+        self.download_dir_var.trace_add("write", self._on_download_dir_var_write)
+        self._chapter_workers_value = self._clamp_value(self.chapter_workers_var.get(), 1, 10, 1)
+        self.chapter_workers_var.set(self._chapter_workers_value)
+        self._image_workers_value = self._clamp_value(self.image_workers_var.get(), 1, 32, 4)
+        self.image_workers_var.set(self._image_workers_value)
+        self.total_downloads = 0
+        self.completed_downloads = 0
 
         self._build_ui()
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        self._ensure_chapter_executor(force_reset=True)
+        self._update_queue_status()
+        self._update_queue_progress()
 
     def _build_ui(self):
         self.configure(padx=10, pady=10)
@@ -125,7 +151,7 @@ class MangaDownloader(tk.Tk):
         chapters_list_container = ttk.Frame(chapters_frame)
         chapters_list_container.pack(fill="both", expand=True)
 
-        self.chapters_listbox = tk.Listbox(chapters_list_container, height=12)
+        self.chapters_listbox = tk.Listbox(chapters_list_container, height=12, selectmode="extended")
         self.chapters_listbox.pack(side="left", fill="both", expand=True)
 
         chapters_scrollbar = ttk.Scrollbar(chapters_list_container, orient="vertical", command=self.chapters_listbox.yview)
@@ -135,7 +161,18 @@ class MangaDownloader(tk.Tk):
         self.chapters_listbox.bind("<<ListboxSelect>>", self.on_chapter_select)
         self.chapters_listbox.bind("<Double-1>", self.on_chapter_double_click)
 
+        range_frame = ttk.Frame(chapters_frame)
+        range_frame.pack(fill="x", pady=(5, 0))
+        ttk.Label(range_frame, text="Range:").pack(side="left")
+        range_start_entry = ttk.Entry(range_frame, width=5, textvariable=self.range_start_var)
+        range_start_entry.pack(side="left", padx=(5, 2))
+        ttk.Label(range_frame, text="to").pack(side="left")
+        range_end_entry = ttk.Entry(range_frame, width=5, textvariable=self.range_end_var)
+        range_end_entry.pack(side="left", padx=(2, 5))
+
         ttk.Button(chapters_frame, text="Download Selected", command=self.download_selected_chapter).pack(fill="x", pady=(5, 0))
+        ttk.Button(chapters_frame, text="Download Range", command=self.download_range).pack(fill="x", pady=(2, 0))
+        ttk.Button(chapters_frame, text="Download All", command=self.download_all_chapters).pack(fill="x", pady=(2, 0))
 
         # --- Download Section ---
         download_frame = ttk.LabelFrame(self, text="Chapter Download")
@@ -151,11 +188,57 @@ class MangaDownloader(tk.Tk):
         self.download_button = ttk.Button(download_entry_frame, text="Download", command=self.start_download_thread)
         self.download_button.pack(side="left")
 
+        directory_frame = ttk.Frame(download_frame)
+        directory_frame.pack(fill="x", padx=10, pady=(0, 5))
+
+        ttk.Label(directory_frame, text="Save to:").pack(side="left")
+        self.download_dir_entry = ttk.Entry(directory_frame, textvariable=self.download_dir_var)
+        self.download_dir_entry.pack(side="left", fill="x", expand=True, padx=(5, 5))
+        ttk.Button(directory_frame, text="Browse…", command=self._browse_download_dir).pack(side="left")
+
+        concurrency_frame = ttk.Frame(download_frame)
+        concurrency_frame.pack(fill="x", padx=10, pady=(0, 5))
+
+        ttk.Label(concurrency_frame, text="Chapter workers:").pack(side="left")
+        self.chapter_workers_spinbox = ttk.Spinbox(
+            concurrency_frame,
+            from_=1,
+            to=10,
+            width=4,
+            textvariable=self.chapter_workers_var,
+            command=self._on_chapter_workers_change,
+        )
+        self.chapter_workers_spinbox.pack(side="left", padx=(5, 15))
+        self.chapter_workers_spinbox.bind("<FocusOut>", self._on_chapter_workers_change)
+
+        ttk.Label(concurrency_frame, text="Image workers:").pack(side="left")
+        self.image_workers_spinbox = ttk.Spinbox(
+            concurrency_frame,
+            from_=1,
+            to=32,
+            width=4,
+            textvariable=self.image_workers_var,
+            command=self._on_image_workers_change,
+        )
+        self.image_workers_spinbox.pack(side="left", padx=(5, 0))
+        self.image_workers_spinbox.bind("<FocusOut>", self._on_image_workers_change)
+
         progress_frame = ttk.Frame(download_frame)
         progress_frame.pack(fill="x", padx=10, pady=(0, 5))
 
+        ttk.Label(progress_frame, text="Image progress:").pack(anchor="w")
         self.progress = ttk.Progressbar(progress_frame, orient="horizontal", mode="determinate")
         self.progress.pack(fill="x")
+
+        queue_progress_frame = ttk.Frame(download_frame)
+        queue_progress_frame.pack(fill="x", padx=10, pady=(0, 5))
+
+        ttk.Label(queue_progress_frame, text="Queue progress:").pack(anchor="w")
+        self.queue_progress = ttk.Progressbar(queue_progress_frame, orient="horizontal", mode="determinate")
+        self.queue_progress.pack(fill="x")
+
+        self.queue_label = ttk.Label(download_frame, textvariable=self.queue_status_var)
+        self.queue_label.pack(anchor="w", padx=10, pady=(0, 5))
 
         self.status_label = ttk.Label(download_frame, text="Status: Ready")
         self.status_label.pack(anchor="w", padx=10, pady=(0, 10))
@@ -310,6 +393,8 @@ class MangaDownloader(tk.Tk):
                 self.url_var.set(chapter_url)
             chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {index + 1}"
             self.status_label.config(text=f"Status: Selected {chapter_title}")
+            self.range_start_var.set(str(index + 1))
+            self.range_end_var.set(str(index + 1))
 
     def on_chapter_double_click(self, event):
         self.download_selected_chapter()
@@ -317,123 +402,422 @@ class MangaDownloader(tk.Tk):
     def download_selected_chapter(self):
         selection = self.chapters_listbox.curselection()
         if not selection:
-            self.status_label.config(text="Status: Select a chapter to download.")
+            self._set_status("Status: Select one or more chapters to download.")
             return
-        index = selection[0]
-        if 0 <= index < len(self.series_chapters):
+        indices = sorted({idx for idx in selection if 0 <= idx < len(self.series_chapters)})
+        chapter_items = []
+        for index in indices:
             chapter = self.series_chapters[index]
             chapter_url = chapter.get("url", "")
-            if chapter_url:
-                self.url_var.set(chapter_url)
-            self.start_download_thread()
+            if not chapter_url:
+                continue
+            label = self._format_chapter_label(index, chapter)
+            chapter_items.append((chapter_url, label))
+
+        if not chapter_items:
+            self._set_status("Status: Selected chapters are missing download URLs.")
+            return
+
+        self.url_var.set(chapter_items[0][0])
+        self._enqueue_chapter_downloads(chapter_items)
+
+    def download_range(self):
+        if not self.series_chapters:
+            self._set_status("Status: Load a series before downloading a range.")
+            return
+
+        try:
+            start = int(self.range_start_var.get())
+            end = int(self.range_end_var.get())
+        except (TypeError, ValueError):
+            self._set_status("Status: Invalid range. Use numeric values like 1 and 5.")
+            return
+
+        if start <= 0 or end <= 0:
+            self._set_status("Status: Range values must be positive integers.")
+            return
+
+        if start > end:
+            start, end = end, start
+
+        max_index = len(self.series_chapters)
+        start_index = max(1, start)
+        end_index = min(max_index, end)
+        if start_index > end_index:
+            self._set_status("Status: Range does not match any chapters.")
+            return
+
+        chapter_items = []
+        for idx in range(start_index - 1, end_index):
+            chapter = self.series_chapters[idx]
+            chapter_url = chapter.get("url", "")
+            if not chapter_url:
+                continue
+            label = self._format_chapter_label(idx, chapter)
+            chapter_items.append((chapter_url, label))
+
+        if not chapter_items:
+            self._set_status("Status: No downloadable chapters in the requested range.")
+            return
+
+        self.url_var.set(chapter_items[0][0])
+        self._enqueue_chapter_downloads(chapter_items)
+
+    def download_all_chapters(self):
+        if not self.series_chapters:
+            self._set_status("Status: No chapters available to download.")
+            return
+
+        chapter_items = []
+        for idx, chapter in enumerate(self.series_chapters):
+            chapter_url = chapter.get("url", "")
+            if not chapter_url:
+                continue
+            label = self._format_chapter_label(idx, chapter)
+            chapter_items.append((chapter_url, label))
+
+        if not chapter_items:
+            self._set_status("Status: Unable to queue downloads because no chapter URLs were found.")
+            return
+
+        self.url_var.set(chapter_items[0][0])
+        self._enqueue_chapter_downloads(chapter_items)
 
     # --- Download Handlers ---
     def start_download_thread(self):
         url = self.url_var.get().strip()
         if not url:
-            self.status_label.config(text="Status: Error - URL is empty")
+            self._set_status("Status: Error - URL is empty")
             return
 
-        self.download_button.config(state="disabled")
-        self.status_label.config(text="Status: Starting download...")
-        self.progress["value"] = 0
-        thread = threading.Thread(target=self.download_manga, args=(url,), daemon=True)
-        thread.start()
+        self._enqueue_chapter_downloads([(url, None)])
 
-    def download_manga(self, url):
+    def _enqueue_chapter_downloads(self, chapter_items):
+        queued = 0
+        for url, label in chapter_items:
+            if not url:
+                continue
+            self._submit_download_task(url, label)
+            queued += 1
+
+        if queued:
+            label = "chapter" if queued == 1 else "chapters"
+            self._set_status(f"Status: Queued {queued} {label} for download.")
+        else:
+            self._set_status("Status: No chapters were queued for download.")
+
+    def _submit_download_task(self, url, initial_label):
+        self._ensure_chapter_executor()
+        with self.queue_lock:
+            self.pending_downloads += 1
+            self.total_downloads += 1
+        self._update_queue_status()
+        self._update_queue_progress()
+        future = self.chapter_executor.submit(self._download_chapter_worker, url, initial_label)
+        future.add_done_callback(self._on_download_task_done)
+
+    def _ensure_chapter_executor(self, force_reset=False):
+        desired_workers = self._clamp_value(self._chapter_workers_value, 1, 10, 1)
+        if desired_workers != self._chapter_workers_value:
+            self._chapter_workers_value = desired_workers
+            self.chapter_workers_var.set(desired_workers)
+        with self.chapter_executor_lock:
+            if (
+                force_reset
+                or self.chapter_executor is None
+                or self._chapter_executor_workers != desired_workers
+            ):
+                if self.chapter_executor is not None:
+                    self.chapter_executor.shutdown(wait=False)
+                self.chapter_executor = ThreadPoolExecutor(
+                    max_workers=desired_workers,
+                    thread_name_prefix="chapter-download",
+                )
+                self._chapter_executor_workers = desired_workers
+
+    def _on_chapter_workers_change(self, event=None):
+        value = self._clamp_value(self.chapter_workers_var.get(), 1, 10, self._chapter_workers_value or 1)
+        if value != self.chapter_workers_var.get():
+            self.chapter_workers_var.set(value)
+        if value != self._chapter_workers_value or event is None:
+            self._chapter_workers_value = value
+            self._ensure_chapter_executor(force_reset=True)
+
+    def _on_image_workers_change(self, event=None):
+        value = self._clamp_value(self.image_workers_var.get(), 1, 32, self._image_workers_value or 4)
+        if value != self.image_workers_var.get():
+            self.image_workers_var.set(value)
+        if value != self._image_workers_value or event is None:
+            self._image_workers_value = value
+
+    def _on_download_start(self, label):
+        nice_label = label or "chapter"
+        with self.queue_lock:
+            if self.pending_downloads > 0:
+                self.pending_downloads -= 1
+            self.active_downloads += 1
+        self._update_queue_status()
+        self._update_queue_progress()
+        self._set_status(f"Status: Downloading {nice_label}...")
+        self._set_progress(maximum=1, value=0)
+
+    def _on_download_end(self, label):
+        with self.queue_lock:
+            if self.active_downloads > 0:
+                self.active_downloads -= 1
+            if self.total_downloads > 0:
+                self.completed_downloads = min(self.completed_downloads + 1, self.total_downloads)
+            active = self.active_downloads
+            pending = self.pending_downloads
+            done_all = active == 0 and pending == 0
+        self._update_queue_status()
+        self._update_queue_progress()
+        if done_all:
+            with self.queue_lock:
+                if self.active_downloads == 0 and self.pending_downloads == 0:
+                    self.total_downloads = 0
+                    self.completed_downloads = 0
+            self._update_queue_progress()
+            self._set_progress(maximum=1, value=0)
+            self._set_status("Status: Ready")
+
+    def _update_queue_status(self):
+        with self.queue_lock:
+            active = self.active_downloads
+            pending = self.pending_downloads
+
+        queue_text = f"Queue • Active: {active} | Pending: {pending}"
+        self.after(0, lambda: self.queue_status_var.set(queue_text))
+
+    def _update_queue_progress(self):
+        with self.queue_lock:
+            total = self.total_downloads
+            completed = min(self.completed_downloads, total)
+
+        def update():
+            if total > 0:
+                self.queue_progress["maximum"] = max(1, total)
+                self.queue_progress["value"] = completed
+            else:
+                self.queue_progress["maximum"] = 1
+                self.queue_progress["value"] = 0
+
+        self.after(0, update)
+
+    def _set_status(self, message):
+        self.after(0, lambda: self.status_label.config(text=message))
+
+    def _set_progress(self, maximum=None, value=None):
+        def update():
+            if maximum is not None:
+                max_value = max(1, maximum)
+                self.progress["maximum"] = max_value
+                if value is None and self.progress["value"] > max_value:
+                    self.progress["value"] = max_value
+            if value is not None:
+                self.progress["value"] = min(self.progress["maximum"], value)
+
+        self.after(0, update)
+
+    def _clamp_value(self, value, minimum, maximum, default):
         try:
-            scraper = cloudscraper.create_scraper()
-            print(f"Fetching URL: {url}")
+            int_value = int(value)
+        except (TypeError, ValueError, tk.TclError):
+            int_value = default
+        if minimum is not None:
+            int_value = max(minimum, int_value)
+        if maximum is not None:
+            int_value = min(maximum, int_value)
+        return int_value
+
+    def _browse_download_dir(self):
+        initial_dir = self.download_dir_path or self._get_default_download_root()
+        directory = filedialog.askdirectory(initialdir=initial_dir)
+        if directory:
+            self.download_dir_var.set(directory)
+
+    def _on_download_dir_var_write(self, *_):
+        value = self.download_dir_var.get()
+        self.download_dir_path = value.strip() if isinstance(value, str) else ""
+
+    def _resolve_download_base_dir(self):
+        base = self.download_dir_path or self._get_default_download_root()
+        base = os.path.abspath(os.path.expanduser(base))
+        try:
+            os.makedirs(base, exist_ok=True)
+        except OSError as exc:
+            self._set_status(f"Status: Error - Cannot access download directory: {exc}")
+            return None
+        return base
+
+    def _get_default_download_root(self):
+        downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+        if os.path.isdir(downloads):
+            return downloads
+        return os.path.expanduser("~")
+
+    def _format_chapter_label(self, index, chapter):
+        chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {index + 1}"
+        return f"{index + 1:03d} • {chapter_title}"
+
+    def _download_chapter_worker(self, url, initial_label):
+        display_label = initial_label or url
+        self._on_download_start(display_label)
+        scraper = cloudscraper.create_scraper()
+        chapter_display = display_label
+        try:
+            self._set_status(f"Status: Fetching {display_label}...")
             response = scraper.get(url)
             response.raise_for_status()
-            html_content = response.text
-            soup = BeautifulSoup(html_content, 'html.parser')
+            soup = BeautifulSoup(response.text, "html.parser")
 
-            # --- Modular Parsing Engine ---
             parsed_data = None
             for parser in ALL_PARSERS:
-                self.status_label.config(text=f"Status: Trying parser {parser.get_name()}...")
-                self.update_idletasks()
+                self._set_status(f"Status: {display_label} • trying parser {parser.get_name()}...")
                 if parser.can_parse(soup, url):
                     parsed_data = parser.parse(soup, url)
                     if parsed_data:
-                        self.status_label.config(text=f"Status: Parsed successfully with {parser.get_name()}!")
-                        self.update_idletasks()
                         break
-            
+
             if not parsed_data:
-                self.status_label.config(text="Status: Error - No suitable parser found for this URL.")
-                self.download_button.config(state="normal")
+                self._set_status("Status: Error - No suitable parser found for this URL.")
                 return
 
-            title = parsed_data['title']
-            chapter = parsed_data['chapter']
-            image_urls = parsed_data['image_urls']
+            title = parsed_data["title"]
+            chapter = parsed_data["chapter"]
+            chapter_display = f"{title} — {chapter}"
+            image_urls = parsed_data["image_urls"]
 
-            # --- Create Directory ---
-            download_dir = os.path.join(os.path.expanduser("~"), "Downloads", f"{title}_{chapter}")
+            base_dir = self._resolve_download_base_dir()
+            if not base_dir:
+                return
+            download_dir = os.path.join(base_dir, f"{title}_{chapter}")
             os.makedirs(download_dir, exist_ok=True)
 
-            # --- Download Images ---
-            total_images = len(image_urls)
-            self.progress["maximum"] = total_images
-            for i, img_url in enumerate(image_urls):
-                try:
-                    img_response = scraper.get(img_url)
-                    img_response.raise_for_status()
-                    
-                    parsed_url = urlparse(img_url)
-                    filename, file_ext = os.path.splitext(os.path.basename(parsed_url.path))
-                    if not file_ext:
-                        content_type = img_response.headers.get('content-type')
-                        ext_match = re.search(r'image/(\w+)', content_type) if content_type else None
-                        file_ext = f".{ext_match.group(1)}" if ext_match else ".jpg"
+            failed_downloads = self._download_images_concurrently(
+                scraper, image_urls, download_dir, chapter_display
+            )
 
-                    file_path = os.path.join(download_dir, f"{i+1:03d}{file_ext}")
-                    with open(file_path, 'wb') as f:
-                        f.write(img_response.content)
+            if failed_downloads and len(failed_downloads) == len(image_urls):
+                self._set_status(f"Status: Failed to download images for {chapter_display}.")
+                return
 
-                    self.status_label.config(text=f"Status: Downloading {i+1}/{total_images}")
-                    self.progress["value"] = i + 1
-                    self.update_idletasks()
-
-                except requests.RequestException as e:
-                    print(f"Failed to download {img_url}: {e}")
-                    continue
-
-            self.status_label.config(text="Status: Download complete. Now creating PDF...")
-            self.update_idletasks()
-
-            # --- Create PDF ---
-            supported_formats = ('png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp')
-            image_files = sorted([
-                os.path.join(download_dir, f) 
-                for f in os.listdir(download_dir) 
-                if f.lower().endswith(supported_formats)
-            ])
-
-            if image_files:
-                pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
-                
-                images_to_save = [Image.open(f).convert('RGB') for f in image_files]
-                
-                if images_to_save:
-                    images_to_save[0].save(
-                        pdf_path, "PDF", resolution=100.0, save_all=True, 
-                        append_images=images_to_save[1:]
-                    )
-                    self.status_label.config(text=f"Status: PDF created! Saved to {pdf_path}")
-                else:
-                    self.status_label.config(text="Status: No valid images found to create PDF.")
+            self._create_pdf(download_dir, title, chapter, chapter_display)
+            if failed_downloads:
+                self._set_status(
+                    f"Status: Completed {chapter_display} with {len(failed_downloads)} failed image(s)."
+                )
             else:
-                self.status_label.config(text="Status: No images found to create PDF.")
+                self._set_status(f"Status: Completed {chapter_display}.")
+        except requests.RequestException as exc:
+            self._set_status(f"Status: Error - Failed to fetch {display_label}: {exc}")
+            raise
+        except Exception as exc:
+            self._set_status(f"Status: Error - Download failed for {chapter_display}: {exc}")
+            raise
+        finally:
+            self._on_download_end(display_label)
 
-        except requests.RequestException as e:
-            self.status_label.config(text=f"Status: Error - Failed to fetch URL: {e}")
-        except Exception as e:
-            self.status_label.config(text=f"Status: Error - An unexpected error occurred: {e}")
+    def _download_images_concurrently(self, scraper, image_urls, download_dir, chapter_display):
+        total_images = len(image_urls)
+        if total_images == 0:
+            self._set_status(f"Status: {chapter_display} • No images found to download.")
+            self._set_progress(maximum=1, value=0)
+            return []
 
-        self.download_button.config(state="normal")
+        workers = self._clamp_value(self._image_workers_value or 4, 1, 32, 4)
+        self._set_progress(maximum=total_images, value=0)
+        self._set_status(f"Status: {chapter_display} • Downloading images...")
+
+        failed = []
+        progress_lock = threading.Lock()
+        completed = 0
+
+        def fetch_image(index, img_url):
+            try:
+                img_response = scraper.get(img_url, timeout=30)
+                img_response.raise_for_status()
+                file_ext = self._determine_file_extension(img_url, img_response)
+                file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
+                with open(file_path, "wb") as f:
+                    f.write(img_response.content)
+                return index, True, None
+            except Exception as exc:  # noqa: BLE001
+                print(f"Failed to download {img_url}: {exc}")
+                return index, False, img_url
+
+        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download") as executor:
+            futures = [
+                executor.submit(fetch_image, index, img_url) for index, img_url in enumerate(image_urls)
+            ]
+            for future in as_completed(futures):
+                index, success, error_url = future.result()
+                with progress_lock:
+                    completed += 1
+                    current_completed = completed
+                self._set_progress(value=current_completed)
+                self._set_status(
+                    f"Status: {chapter_display} • {current_completed}/{total_images} image(s) downloaded"
+                )
+                if not success and error_url:
+                    failed.append(error_url)
+
+        return failed
+
+    def _determine_file_extension(self, img_url, response):
+        parsed_url = urlparse(img_url)
+        _, file_ext = os.path.splitext(os.path.basename(parsed_url.path))
+        if not file_ext:
+            content_type = response.headers.get("content-type")
+            ext_match = re.search(r"image/(\w+)", content_type) if content_type else None
+            file_ext = f".{ext_match.group(1)}" if ext_match else ".jpg"
+        return file_ext
+
+    def _create_pdf(self, download_dir, title, chapter, chapter_display):
+        supported_formats = ("png", "jpg", "jpeg", "gif", "bmp", "webp")
+        image_files = sorted(
+            [
+                os.path.join(download_dir, f)
+                for f in os.listdir(download_dir)
+                if f.lower().endswith(supported_formats)
+            ]
+        )
+
+        if not image_files:
+            self._set_status(f"Status: {chapter_display} • No images found to create PDF.")
+            return
+
+        pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
+        images = []
+        try:
+            for path in image_files:
+                images.append(Image.open(path).convert("RGB"))
+            if images:
+                primary, *rest = images
+                primary.save(
+                    pdf_path,
+                    "PDF",
+                    resolution=100.0,
+                    save_all=True,
+                    append_images=rest,
+                )
+                self._set_status(f"Status: {chapter_display} • PDF saved to {pdf_path}")
+        finally:
+            for image in images:
+                image.close()
+
+    def _on_download_task_done(self, future):
+        try:
+            future.result()
+        except Exception as exc:  # noqa: BLE001
+            print(f"Download task failed: {exc}")
+
+    def on_close(self):
+        with self.chapter_executor_lock:
+            if self.chapter_executor is not None:
+                self.chapter_executor.shutdown(wait=False)
+                self.chapter_executor = None
+        self.destroy()
 
 if __name__ == "__main__":
     app = MangaDownloader()
