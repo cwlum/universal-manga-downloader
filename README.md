@@ -1,6 +1,6 @@
-# Universal Manga Downloader (v3.1)
+# Universal Manga Downloader (v3.2)
 
-![Version](https://img.shields.io/badge/version-3.1.0-purple)
+![Version](https://img.shields.io/badge/version-3.2.0-purple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
@@ -11,6 +11,7 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 ## What's New
 
+-   **Integrated Bato.to search & chapter browser** – look up series by title, inspect descriptions and metadata, then queue any chapter without leaving the app.
 -   **Bato.si compatibility restored** – the `Bato_V3` parser now understands the latest Qwik-powered page format (it decodes the embedded base36 token map to recover image URLs), so tricky chapters such as [OMORI Official ch. 10](https://bato.si/title/160779-en-omori-official/3735107-ch_10) download again without manual work.
 -   **Parser modules runnable as scripts** – every parser still loads dynamically inside the app, but you can now execute `python3 parsers/bato_v3_parser.py` directly while developing to debug its output.
 
@@ -20,6 +21,7 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 -   ✅ **Modular Parser Engine**: Intelligently cycles through available parsers to find one that works for the given URL. Highly extensible for future websites.
 -   ✅ **Zero-Setup Installation**: Automatically installs all required libraries on first run.
+-   ✅ **Bato.to Search & Chapter Explorer**: Search the catalog, review series info, and select chapters to pre-fill the downloader with a single click.
 -   ✅ **One-Click PDF Conversion**: Instantly merges all downloaded images into a single, high-quality PDF.
 -   ✅ **Smart Folder Organization**: Creates folders named after the manga title and chapter.
 -   ✅ **Advanced Web Scraping**: Uses `cloudscraper` to bypass anti-bot protections like Cloudflare.
@@ -53,8 +55,8 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 #### Step 3: Copy, Paste, and Download
 1.  The GUI window will appear. (It may pause on first run to auto-install libraries).
-2.  Copy a manga **chapter** URL from a supported site (e.g., Bato.to, comick.fun).
-3.  Paste the URL into the input box and click "Download".
+2.  Use the **Search Manga** box to find a Bato.to series by title, then double-click a result to load its synopsis and chapter list.
+3.  Select any chapter to auto-fill the download URL (or paste a chapter link manually) and click **Download**.
 4.  The app will find a suitable parser, download the images, and save the final PDF in your system's "Downloads" folder.
 
 ---
