@@ -9,13 +9,24 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 ---
 
-## What's New
+## A Brand New Tabbed Interface
 
--   **Tabbed workspace** – the app now opens with `Browser`, `Downloads`, and `Settings` tabs, keeping search, queue monitoring, and configuration cleanly separated.
--   **Live queue dashboard** – every queued chapter gets its own status line and progress bar so you can watch fetching, downloading, and conversion stages in real time.
--   **Smarter batch tools** – highlight ranges instantly, press `Ctrl+A` to select all, hit `Enter` in the search or range boxes, and queue chapters with more intuitive buttons.
--   **Central settings panel** – download directory, chapter workers, and image workers live together under the Settings tab for quick tweaks.
--   **Streamlined quick queue** – the manual URL entry is easier to reach, with keyboard shortcuts that speed up repetitive chapter grabs.
+Version 4.0 introduces a tabbed workspace that cleanly separates searching, monitoring your download queue, and configuration.
+
+### Browser
+The Browser tab is where you can search for manga, review series info, and easily select chapters for download.
+
+![Browser Tab](assets/Browser.png)
+
+### Downloads
+A live queue dashboard! Every queued chapter gets its own status line and progress bar so you can watch fetching, downloading, and conversion stages in real time.
+
+![Downloads Tab](assets/Downloads.png)
+
+### Settings
+The download directory, chapter workers, and image workers live together under the Settings tab for quick tweaks.
+
+![Settings Tab](assets/Settings.png)
 
 ---
 

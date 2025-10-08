@@ -30,12 +30,14 @@ install_and_import("requests")
 install_and_import("beautifulsoup4", "bs4")
 install_and_import("Pillow", "PIL")
 install_and_import("cloudscraper")
+install_and_import("sv_ttk")
 
 # --- Now import everything else ---
 import requests
 import cloudscraper
 from bs4 import BeautifulSoup
 from PIL import Image
+import sv_ttk
 from parsers import ALL_PARSERS
 from services import BatoService
 
@@ -44,8 +46,10 @@ class MangaDownloader(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Universal Manga Downloader")
-        self.geometry("900x650")
-        self.minsize(820, 600)
+        self.geometry("1100x850")
+        self.minsize(1000, 800)
+
+        sv_ttk.set_theme("dark")
 
         self.bato_service = BatoService()
         self.search_results = []
@@ -76,13 +80,19 @@ class MangaDownloader(tk.Tk):
         self._queue_item_sequence = 0
 
         self._build_ui()
+
+        # Global mouse wheel binding
+        self.bind_all("<MouseWheel>", self._on_mousewheel_global)
+        self.bind_all("<Button-4>", self._on_mousewheel_global)
+        self.bind_all("<Button-5>", self._on_mousewheel_global)
+
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self._ensure_chapter_executor(force_reset=True)
         self._update_queue_status()
         self._update_queue_progress()
 
     def _build_ui(self):
-        self.configure(padx=12, pady=12)
+        self.configure(padx=15, pady=15)
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True)
@@ -97,17 +107,17 @@ class MangaDownloader(tk.Tk):
 
         # --- Search Tab ---
         search_frame = ttk.LabelFrame(self.search_tab, text="Search Manga")
-        search_frame.pack(fill="x", expand=False, padx=10, pady=(12, 6))
+        search_frame.pack(fill="x", expand=False, padx=10, pady=(12, 10))
 
         search_entry_frame = ttk.Frame(search_frame)
-        search_entry_frame.pack(fill="x", padx=10, pady=6)
+        search_entry_frame.pack(fill="x", padx=10, pady=10)
 
         self.search_entry = ttk.Entry(search_entry_frame)
         self.search_entry.pack(side="left", fill="x", expand=True)
         self.search_entry.bind("<Return>", lambda _event: self.start_search_thread())
 
         self.search_button = ttk.Button(search_entry_frame, text="Search", command=self.start_search_thread)
-        self.search_button.pack(side="left", padx=(6, 0))
+        self.search_button.pack(side="left", padx=(10, 0))
 
         results_frame = ttk.Frame(search_frame)
         results_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
@@ -128,22 +138,22 @@ class MangaDownloader(tk.Tk):
         series_frame.pack(fill="both", expand=True, padx=10, pady=(0, 12))
 
         controls_frame = ttk.Frame(series_frame)
-        controls_frame.pack(fill="x", padx=10, pady=6)
+        controls_frame.pack(fill="x", padx=10, pady=10)
 
         ttk.Label(controls_frame, text="Series URL:").pack(side="left")
         self.series_url_var = tk.StringVar()
         self.series_url_entry = ttk.Entry(controls_frame, textvariable=self.series_url_var)
-        self.series_url_entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
+        self.series_url_entry.pack(side="left", fill="x", expand=True, padx=(8, 8))
         self.load_series_button = ttk.Button(controls_frame, text="Load Series", command=self.start_series_info_thread)
         self.load_series_button.pack(side="left")
 
         self.series_title_var = tk.StringVar(value="Series title will appear here")
-        ttk.Label(series_frame, textvariable=self.series_title_var, font=("TkDefaultFont", 12, "bold")).pack(
-            anchor="w", padx=10
+        ttk.Label(series_frame, textvariable=self.series_title_var, font=("TkDefaultFont", 14, "bold")).pack(
+            anchor="w", padx=10, pady=(0, 4)
         )
 
         info_and_chapters_frame = ttk.Frame(series_frame)
-        info_and_chapters_frame.pack(fill="both", expand=True, padx=10, pady=(6, 10))
+        info_and_chapters_frame.pack(fill="both", expand=True, padx=10, pady=(10, 10))
 
         info_frame = ttk.Frame(info_and_chapters_frame)
         info_frame.pack(side="left", fill="both", expand=True)
@@ -218,10 +228,10 @@ class MangaDownloader(tk.Tk):
 
         # --- Queue Tab ---
         queue_wrapper = ttk.LabelFrame(self.queue_tab, text="Download Queue")
-        queue_wrapper.pack(fill="both", expand=True, padx=10, pady=(12, 6))
+        queue_wrapper.pack(fill="both", expand=True, padx=10, pady=(12, 10))
 
         queue_canvas_frame = ttk.Frame(queue_wrapper)
-        queue_canvas_frame.pack(fill="both", expand=True, padx=10, pady=6)
+        queue_canvas_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         self.queue_canvas = tk.Canvas(queue_canvas_frame, borderwidth=0, highlightthickness=0)
         self.queue_canvas.pack(side="left", fill="both", expand=True)
@@ -245,6 +255,8 @@ class MangaDownloader(tk.Tk):
 
         self.queue_items_container.bind("<Configure>", _sync_queue_scrollregion)
 
+        # Mouse wheel scrolling is now handled globally.
+
         queue_footer = ttk.LabelFrame(self.queue_tab, text="Queue Overview")
         queue_footer.pack(fill="x", expand=False, padx=10, pady=(0, 12))
 
@@ -252,15 +264,22 @@ class MangaDownloader(tk.Tk):
         self.queue_progress = ttk.Progressbar(queue_footer, orient="horizontal", mode="determinate")
         self.queue_progress.pack(fill="x", padx=10, pady=(0, 6))
 
-        self.queue_label = ttk.Label(queue_footer, textvariable=self.queue_status_var)
-        self.queue_label.pack(anchor="w", padx=10, pady=(0, 8))
+        queue_controls_frame = ttk.Frame(queue_footer)
+        queue_controls_frame.pack(fill="x", padx=10, pady=(0, 8))
+
+        self.queue_label = ttk.Label(queue_controls_frame, textvariable=self.queue_status_var)
+        self.queue_label.pack(side="left", anchor="w")
+
+        ttk.Button(queue_controls_frame, text="Clear Finished", command=self._clear_finished_queue_items).pack(
+            side="right"
+        )
 
         # --- Settings Tab ---
         settings_frame = ttk.LabelFrame(self.settings_tab, text="Download Settings")
-        settings_frame.pack(fill="x", expand=False, padx=10, pady=(12, 6))
+        settings_frame.pack(fill="x", expand=False, padx=10, pady=(12, 10))
 
         directory_frame = ttk.Frame(settings_frame)
-        directory_frame.pack(fill="x", padx=10, pady=6)
+        directory_frame.pack(fill="x", padx=10, pady=10)
 
         ttk.Label(directory_frame, text="Save to:").pack(side="left")
         self.download_dir_entry = ttk.Entry(directory_frame, textvariable=self.download_dir_var)
@@ -268,7 +287,7 @@ class MangaDownloader(tk.Tk):
         ttk.Button(directory_frame, text="Browse…", command=self._browse_download_dir).pack(side="left")
 
         concurrency_frame = ttk.Frame(settings_frame)
-        concurrency_frame.pack(fill="x", padx=10, pady=6)
+        concurrency_frame.pack(fill="x", padx=10, pady=10)
 
         ttk.Label(concurrency_frame, text="Chapter workers:").pack(side="left")
         self.chapter_workers_spinbox = ttk.Spinbox(
@@ -295,7 +314,7 @@ class MangaDownloader(tk.Tk):
         self.image_workers_spinbox.bind("<FocusOut>", self._on_image_workers_change)
 
         status_bar = ttk.Frame(self)
-        status_bar.pack(fill="x", expand=False, pady=(8, 0))
+        status_bar.pack(fill="x", side="bottom", pady=(10, 0))
         self.status_label = ttk.Label(status_bar, text="Status: Ready")
         self.status_label.pack(anchor="w", padx=4, pady=(0, 4))
 
@@ -793,7 +812,10 @@ class MangaDownloader(tk.Tk):
             "progress": progress,
             "maximum": 1,
             "url": url,
+            "state": "pending",  # pending, running, success, error
         }
+
+        # Mouse wheel scrolling is now handled globally.
 
         self._scroll_queue_to_bottom()
         return queue_id
@@ -813,6 +835,8 @@ class MangaDownloader(tk.Tk):
             if not item:
                 return
             item["status_var"].set(text)
+            if state:
+                item["state"] = state
             status_label = item["status_label"]
             if state == "success":
                 status_label.configure(foreground="#1a7f37")
@@ -877,6 +901,70 @@ class MangaDownloader(tk.Tk):
             self.queue_canvas.yview_moveto(1.0)
 
         self.after(50, _scroll)
+
+    def _on_mousewheel_global(self, event):
+        # Find the widget under the cursor
+        x, y = self.winfo_pointerxy()
+        widget_at_cursor = self.winfo_containing(x, y)
+        if widget_at_cursor is None:
+            return
+
+        # Determine which scrollable widget to target
+        target_widget = None
+        w = widget_at_cursor
+        while w is not None:
+            if w == self.queue_canvas:
+                target_widget = self.queue_canvas
+                break
+            if w == self.search_results_listbox:
+                target_widget = self.search_results_listbox
+                break
+            if w == self.series_info_text:
+                target_widget = self.series_info_text
+                break
+            if w == self.chapters_listbox:
+                target_widget = self.chapters_listbox
+                break
+            w = w.master
+
+        if target_widget is None:
+            return
+
+        # Cross-platform scroll wheel logic
+        if sys.platform.startswith("linux"):
+            if event.num == 4:
+                delta = -1
+            elif event.num == 5:
+                delta = 1
+            else:
+                return
+        elif sys.platform == "darwin":  # macOS
+            delta = -event.delta
+        else:  # Windows
+            delta = -1 * (event.delta // 120)
+
+        try:
+            target_widget.yview_scroll(delta, "units")
+        except tk.TclError:
+            # This can happen if the widget is not scrollable, although we've tried to filter.
+            pass
+
+
+
+    def _clear_finished_queue_items(self):
+        ids_to_remove = [
+            qid for qid, item in self.queue_items.items() if item.get("state") in ("success", "error")
+        ]
+        if not ids_to_remove:
+            self._set_status("Status: No finished items to clear.")
+            return
+
+        for qid in ids_to_remove:
+            item = self.queue_items.pop(qid, None)
+            if item and item.get("frame"):
+                item["frame"].destroy()
+
+        self._set_status(f"Status: Cleared {len(ids_to_remove)} finished item(s) from the queue.")
 
     def _download_chapter_worker(self, queue_id, url, initial_label):
         display_label = initial_label or url
