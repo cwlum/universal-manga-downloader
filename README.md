@@ -1,6 +1,6 @@
-# Universal Manga Downloader (v3.4)
+# Universal Manga Downloader (v4.0)
 
-![Version](https://img.shields.io/badge/version-3.4.0-purple)
+![Version](https://img.shields.io/badge/version-4.0.0-purple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
@@ -11,12 +11,11 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 ## What's New
 
--   **Custom download location & queue progress** – pick any destination folder and watch a dedicated queue progress bar track overall completion.
--   **Batch downloads & range control** – multi-select chapters, queue entire series, or target custom chapter ranges without reloading the UI.
--   **Configurable multi-threading** – dial in chapter and image worker counts to accelerate downloads with parallel fetches.
--   **Integrated Bato.to search & chapter browser** – look up series by title, inspect descriptions and metadata, then queue any chapter without leaving the app.
--   **Bato.si compatibility restored** – the `Bato_V3` parser now understands the latest Qwik-powered page format (it decodes the embedded base36 token map to recover image URLs), so tricky chapters such as [OMORI Official ch. 10](https://bato.si/title/160779-en-omori-official/3735107-ch_10) download again without manual work.
--   **Parser modules runnable as scripts** – every parser still loads dynamically inside the app, but you can now execute `python3 parsers/bato_v3_parser.py` directly while developing to debug its output.
+-   **Tabbed workspace** – the app now opens with `Browser`, `Downloads`, and `Settings` tabs, keeping search, queue monitoring, and configuration cleanly separated.
+-   **Live queue dashboard** – every queued chapter gets its own status line and progress bar so you can watch fetching, downloading, and conversion stages in real time.
+-   **Smarter batch tools** – highlight ranges instantly, press `Ctrl+A` to select all, hit `Enter` in the search or range boxes, and queue chapters with more intuitive buttons.
+-   **Central settings panel** – download directory, chapter workers, and image workers live together under the Settings tab for quick tweaks.
+-   **Streamlined quick queue** – the manual URL entry is easier to reach, with keyboard shortcuts that speed up repetitive chapter grabs.
 
 ---
 
@@ -24,7 +23,9 @@ This tool is built on a **modular parser engine**, making it adaptable to future
 
 -   ✅ **Modular Parser Engine**: Intelligently cycles through available parsers to find one that works for the given URL. Highly extensible for future websites.
 -   ✅ **Zero-Setup Installation**: Automatically installs all required libraries on first run.
--   ✅ **Batch Queue & Range Control**: Queue entire series, multi-select chapters, or target custom chapter ranges in one click.
+-   ✅ **Tabbed UI**: Navigate between `Browser`, `Downloads`, and `Settings` tabs to keep searching, monitoring, and configuring separate and tidy.
+-   ✅ **Batch Queue & Range Control**: Queue entire series, highlight ranges with one click, press `Ctrl+A` to select everything, or fine-tune chapter spans via the new range helpers.
+-   ✅ **Per-Chapter Progress**: Watch each chapter advance from fetch to PDF conversion with a dedicated queue entry and live status updates.
 -   ✅ **Multi-Threaded Downloads**: Adjust chapter and image worker counts to shorten download times on fast connections.
 -   ✅ **Custom Download Folder**: Save chapters anywhere—no more being locked to your system Downloads directory.
 -   ✅ **Bato.to Search & Chapter Explorer**: Search the catalog, review series info, and select chapters to pre-fill the downloader with a single click.
@@ -61,9 +62,9 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 #### Step 3: Copy, Paste, and Download
 1.  The GUI window will appear. (It may pause on first run to auto-install libraries).
-2.  Use the **Search Manga** box to find a Bato.to series by title, then double-click a result to load its synopsis and chapter list.
-3.  Select one or many chapters (use Shift/Ctrl for multi-select or the range fields) to queue them, or paste a chapter link manually, then click **Download**.
-4.  Set your preferred save folder and adjust the chapter/image worker spinboxes if you need extra parallelism; the app will fetch images, show per-chapter and overall queue progress, and save the final PDF in your chosen directory.
+2.  In the **Browser** tab, type a title into **Search Manga** and press `Enter`, or double-click a result to load its synopsis and chapter list automatically.
+3.  Multi-select chapters with Shift/Ctrl, press **Highlight Range** to preselect a span, or paste a chapter URL into **Quick Queue**—then choose **Queue Selected**, **Queue Range**, **Queue All**, or **Queue Download** to add them to the queue.
+4.  Switch to the **Downloads** tab to watch each chapter's progress, and use the **Settings** tab to adjust the download folder or worker counts whenever you need.
 
 ---
 

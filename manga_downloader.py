@@ -72,6 +72,8 @@ class MangaDownloader(tk.Tk):
         self.image_workers_var.set(self._image_workers_value)
         self.total_downloads = 0
         self.completed_downloads = 0
+        self.queue_items = {}
+        self._queue_item_sequence = 0
 
         self._build_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -80,25 +82,37 @@ class MangaDownloader(tk.Tk):
         self._update_queue_progress()
 
     def _build_ui(self):
-        self.configure(padx=10, pady=10)
+        self.configure(padx=12, pady=12)
 
-        # --- Search Section ---
-        search_frame = ttk.LabelFrame(self, text="Search Manga")
-        search_frame.pack(fill="both", expand=False, pady=(0, 10))
+        self.notebook = ttk.Notebook(self)
+        self.notebook.pack(fill="both", expand=True)
+
+        self.search_tab = ttk.Frame(self.notebook)
+        self.queue_tab = ttk.Frame(self.notebook)
+        self.settings_tab = ttk.Frame(self.notebook)
+
+        self.notebook.add(self.search_tab, text="Browser")
+        self.notebook.add(self.queue_tab, text="Downloads")
+        self.notebook.add(self.settings_tab, text="Settings")
+
+        # --- Search Tab ---
+        search_frame = ttk.LabelFrame(self.search_tab, text="Search Manga")
+        search_frame.pack(fill="x", expand=False, padx=10, pady=(12, 6))
 
         search_entry_frame = ttk.Frame(search_frame)
-        search_entry_frame.pack(fill="x", padx=10, pady=5)
+        search_entry_frame.pack(fill="x", padx=10, pady=6)
 
         self.search_entry = ttk.Entry(search_entry_frame)
         self.search_entry.pack(side="left", fill="x", expand=True)
+        self.search_entry.bind("<Return>", lambda _event: self.start_search_thread())
 
         self.search_button = ttk.Button(search_entry_frame, text="Search", command=self.start_search_thread)
-        self.search_button.pack(side="left", padx=(5, 0))
+        self.search_button.pack(side="left", padx=(6, 0))
 
         results_frame = ttk.Frame(search_frame)
         results_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
 
-        self.search_results_listbox = tk.Listbox(results_frame, height=6)
+        self.search_results_listbox = tk.Listbox(results_frame, height=6, exportselection=False)
         self.search_results_listbox.pack(side="left", fill="both", expand=True)
 
         search_scrollbar = ttk.Scrollbar(results_frame, orient="vertical", command=self.search_results_listbox.yview)
@@ -107,26 +121,29 @@ class MangaDownloader(tk.Tk):
 
         self.search_results_listbox.bind("<<ListboxSelect>>", self.on_search_select)
         self.search_results_listbox.bind("<Double-1>", self.on_search_double_click)
+        self.search_results_listbox.bind("<Return>", self.on_search_double_click)
 
-        # --- Series Section ---
-        series_frame = ttk.LabelFrame(self, text="Series Details")
-        series_frame.pack(fill="both", expand=True)
+        # --- Series Details ---
+        series_frame = ttk.LabelFrame(self.search_tab, text="Series Details")
+        series_frame.pack(fill="both", expand=True, padx=10, pady=(0, 12))
 
         controls_frame = ttk.Frame(series_frame)
-        controls_frame.pack(fill="x", padx=10, pady=5)
+        controls_frame.pack(fill="x", padx=10, pady=6)
 
         ttk.Label(controls_frame, text="Series URL:").pack(side="left")
         self.series_url_var = tk.StringVar()
         self.series_url_entry = ttk.Entry(controls_frame, textvariable=self.series_url_var)
-        self.series_url_entry.pack(side="left", fill="x", expand=True, padx=(5, 5))
+        self.series_url_entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
         self.load_series_button = ttk.Button(controls_frame, text="Load Series", command=self.start_series_info_thread)
         self.load_series_button.pack(side="left")
 
         self.series_title_var = tk.StringVar(value="Series title will appear here")
-        ttk.Label(series_frame, textvariable=self.series_title_var, font=("TkDefaultFont", 12, "bold")).pack(anchor="w", padx=10)
+        ttk.Label(series_frame, textvariable=self.series_title_var, font=("TkDefaultFont", 12, "bold")).pack(
+            anchor="w", padx=10
+        )
 
         info_and_chapters_frame = ttk.Frame(series_frame)
-        info_and_chapters_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        info_and_chapters_frame.pack(fill="both", expand=True, padx=10, pady=(6, 10))
 
         info_frame = ttk.Frame(info_and_chapters_frame)
         info_frame.pack(side="left", fill="both", expand=True)
@@ -134,7 +151,7 @@ class MangaDownloader(tk.Tk):
         ttk.Label(info_frame, text="Summary & Info:").pack(anchor="w")
 
         info_text_container = ttk.Frame(info_frame)
-        info_text_container.pack(fill="both", expand=True)
+        info_text_container.pack(fill="both", expand=True, pady=(4, 0))
 
         self.series_info_text = tk.Text(info_text_container, height=12, wrap="word", state="disabled")
         self.series_info_text.pack(side="left", fill="both", expand=True)
@@ -144,14 +161,14 @@ class MangaDownloader(tk.Tk):
         self.series_info_text.configure(yscrollcommand=info_scrollbar.set)
 
         chapters_frame = ttk.Frame(info_and_chapters_frame)
-        chapters_frame.pack(side="left", fill="both", expand=False, padx=(10, 0))
+        chapters_frame.pack(side="left", fill="both", expand=False, padx=(12, 0))
 
         ttk.Label(chapters_frame, text="Chapters:").pack(anchor="w")
 
         chapters_list_container = ttk.Frame(chapters_frame)
-        chapters_list_container.pack(fill="both", expand=True)
+        chapters_list_container.pack(fill="both", expand=True, pady=(4, 0))
 
-        self.chapters_listbox = tk.Listbox(chapters_list_container, height=12, selectmode="extended")
+        self.chapters_listbox = tk.Listbox(chapters_list_container, height=12, selectmode="extended", exportselection=False)
         self.chapters_listbox.pack(side="left", fill="both", expand=True)
 
         chapters_scrollbar = ttk.Scrollbar(chapters_list_container, orient="vertical", command=self.chapters_listbox.yview)
@@ -160,44 +177,98 @@ class MangaDownloader(tk.Tk):
 
         self.chapters_listbox.bind("<<ListboxSelect>>", self.on_chapter_select)
         self.chapters_listbox.bind("<Double-1>", self.on_chapter_double_click)
+        self.chapters_listbox.bind("<Return>", lambda _event: self.download_selected_chapter())
+        self.chapters_listbox.bind("<Control-a>", self._on_select_all_chapters)
 
         range_frame = ttk.Frame(chapters_frame)
-        range_frame.pack(fill="x", pady=(5, 0))
+        range_frame.pack(fill="x", pady=(6, 0))
+
         ttk.Label(range_frame, text="Range:").pack(side="left")
-        range_start_entry = ttk.Entry(range_frame, width=5, textvariable=self.range_start_var)
-        range_start_entry.pack(side="left", padx=(5, 2))
+        range_start_entry = ttk.Entry(range_frame, width=6, textvariable=self.range_start_var)
+        range_start_entry.pack(side="left", padx=(6, 3))
+        range_start_entry.bind("<Return>", lambda _event: self._highlight_range_selection())
         ttk.Label(range_frame, text="to").pack(side="left")
-        range_end_entry = ttk.Entry(range_frame, width=5, textvariable=self.range_end_var)
-        range_end_entry.pack(side="left", padx=(2, 5))
+        range_end_entry = ttk.Entry(range_frame, width=6, textvariable=self.range_end_var)
+        range_end_entry.pack(side="left", padx=(3, 6))
+        range_end_entry.bind("<Return>", lambda _event: self._highlight_range_selection())
 
-        ttk.Button(chapters_frame, text="Download Selected", command=self.download_selected_chapter).pack(fill="x", pady=(5, 0))
-        ttk.Button(chapters_frame, text="Download Range", command=self.download_range).pack(fill="x", pady=(2, 0))
-        ttk.Button(chapters_frame, text="Download All", command=self.download_all_chapters).pack(fill="x", pady=(2, 0))
+        ttk.Button(chapters_frame, text="Highlight Range", command=self._highlight_range_selection).pack(
+            fill="x", pady=(8, 0)
+        )
+        ttk.Button(chapters_frame, text="Queue Selected", command=self.download_selected_chapter).pack(
+            fill="x", pady=(4, 2)
+        )
+        ttk.Button(chapters_frame, text="Queue Range", command=self.download_range).pack(fill="x", pady=(0, 2))
+        ttk.Button(chapters_frame, text="Queue All", command=self.download_all_chapters).pack(fill="x")
 
-        # --- Download Section ---
-        download_frame = ttk.LabelFrame(self, text="Chapter Download")
-        download_frame.pack(fill="x", pady=(10, 0))
+        # --- Manual Queue Section ---
+        manual_frame = ttk.LabelFrame(self.search_tab, text="Quick Queue")
+        manual_frame.pack(fill="x", expand=False, padx=10, pady=(0, 12))
 
-        download_entry_frame = ttk.Frame(download_frame)
-        download_entry_frame.pack(fill="x", padx=10, pady=5)
+        download_entry_frame = ttk.Frame(manual_frame)
+        download_entry_frame.pack(fill="x", padx=10, pady=6)
 
         ttk.Label(download_entry_frame, text="Chapter URL:").pack(side="left")
         self.url_var = tk.StringVar()
         self.url_entry = ttk.Entry(download_entry_frame, textvariable=self.url_var)
-        self.url_entry.pack(side="left", fill="x", expand=True, padx=(5, 5))
-        self.download_button = ttk.Button(download_entry_frame, text="Download", command=self.start_download_thread)
+        self.url_entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
+        self.url_entry.bind("<Return>", lambda _event: self.start_download_thread())
+        self.download_button = ttk.Button(download_entry_frame, text="Queue Download", command=self.start_download_thread)
         self.download_button.pack(side="left")
 
-        directory_frame = ttk.Frame(download_frame)
-        directory_frame.pack(fill="x", padx=10, pady=(0, 5))
+        # --- Queue Tab ---
+        queue_wrapper = ttk.LabelFrame(self.queue_tab, text="Download Queue")
+        queue_wrapper.pack(fill="both", expand=True, padx=10, pady=(12, 6))
+
+        queue_canvas_frame = ttk.Frame(queue_wrapper)
+        queue_canvas_frame.pack(fill="both", expand=True, padx=10, pady=6)
+
+        self.queue_canvas = tk.Canvas(queue_canvas_frame, borderwidth=0, highlightthickness=0)
+        self.queue_canvas.pack(side="left", fill="both", expand=True)
+
+        self.queue_items_container = ttk.Frame(self.queue_canvas)
+        self.queue_canvas_window = self.queue_canvas.create_window(
+            (0, 0), window=self.queue_items_container, anchor="nw"
+        )
+
+        def _sync_queue_width(event):
+            self.queue_canvas.itemconfigure(self.queue_canvas_window, width=event.width)
+
+        self.queue_canvas.bind("<Configure>", _sync_queue_width)
+
+        queue_scrollbar = ttk.Scrollbar(queue_canvas_frame, orient="vertical", command=self.queue_canvas.yview)
+        queue_scrollbar.pack(side="right", fill="y")
+        self.queue_canvas.configure(yscrollcommand=queue_scrollbar.set)
+
+        def _sync_queue_scrollregion(event):
+            self.queue_canvas.configure(scrollregion=self.queue_canvas.bbox("all"))
+
+        self.queue_items_container.bind("<Configure>", _sync_queue_scrollregion)
+
+        queue_footer = ttk.LabelFrame(self.queue_tab, text="Queue Overview")
+        queue_footer.pack(fill="x", expand=False, padx=10, pady=(0, 12))
+
+        ttk.Label(queue_footer, text="Overall queue:").pack(anchor="w", padx=10, pady=(6, 0))
+        self.queue_progress = ttk.Progressbar(queue_footer, orient="horizontal", mode="determinate")
+        self.queue_progress.pack(fill="x", padx=10, pady=(0, 6))
+
+        self.queue_label = ttk.Label(queue_footer, textvariable=self.queue_status_var)
+        self.queue_label.pack(anchor="w", padx=10, pady=(0, 8))
+
+        # --- Settings Tab ---
+        settings_frame = ttk.LabelFrame(self.settings_tab, text="Download Settings")
+        settings_frame.pack(fill="x", expand=False, padx=10, pady=(12, 6))
+
+        directory_frame = ttk.Frame(settings_frame)
+        directory_frame.pack(fill="x", padx=10, pady=6)
 
         ttk.Label(directory_frame, text="Save to:").pack(side="left")
         self.download_dir_entry = ttk.Entry(directory_frame, textvariable=self.download_dir_var)
-        self.download_dir_entry.pack(side="left", fill="x", expand=True, padx=(5, 5))
+        self.download_dir_entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
         ttk.Button(directory_frame, text="Browse…", command=self._browse_download_dir).pack(side="left")
 
-        concurrency_frame = ttk.Frame(download_frame)
-        concurrency_frame.pack(fill="x", padx=10, pady=(0, 5))
+        concurrency_frame = ttk.Frame(settings_frame)
+        concurrency_frame.pack(fill="x", padx=10, pady=6)
 
         ttk.Label(concurrency_frame, text="Chapter workers:").pack(side="left")
         self.chapter_workers_spinbox = ttk.Spinbox(
@@ -208,7 +279,7 @@ class MangaDownloader(tk.Tk):
             textvariable=self.chapter_workers_var,
             command=self._on_chapter_workers_change,
         )
-        self.chapter_workers_spinbox.pack(side="left", padx=(5, 15))
+        self.chapter_workers_spinbox.pack(side="left", padx=(6, 18))
         self.chapter_workers_spinbox.bind("<FocusOut>", self._on_chapter_workers_change)
 
         ttk.Label(concurrency_frame, text="Image workers:").pack(side="left")
@@ -220,28 +291,13 @@ class MangaDownloader(tk.Tk):
             textvariable=self.image_workers_var,
             command=self._on_image_workers_change,
         )
-        self.image_workers_spinbox.pack(side="left", padx=(5, 0))
+        self.image_workers_spinbox.pack(side="left", padx=(6, 0))
         self.image_workers_spinbox.bind("<FocusOut>", self._on_image_workers_change)
 
-        progress_frame = ttk.Frame(download_frame)
-        progress_frame.pack(fill="x", padx=10, pady=(0, 5))
-
-        ttk.Label(progress_frame, text="Image progress:").pack(anchor="w")
-        self.progress = ttk.Progressbar(progress_frame, orient="horizontal", mode="determinate")
-        self.progress.pack(fill="x")
-
-        queue_progress_frame = ttk.Frame(download_frame)
-        queue_progress_frame.pack(fill="x", padx=10, pady=(0, 5))
-
-        ttk.Label(queue_progress_frame, text="Queue progress:").pack(anchor="w")
-        self.queue_progress = ttk.Progressbar(queue_progress_frame, orient="horizontal", mode="determinate")
-        self.queue_progress.pack(fill="x")
-
-        self.queue_label = ttk.Label(download_frame, textvariable=self.queue_status_var)
-        self.queue_label.pack(anchor="w", padx=10, pady=(0, 5))
-
-        self.status_label = ttk.Label(download_frame, text="Status: Ready")
-        self.status_label.pack(anchor="w", padx=10, pady=(0, 10))
+        status_bar = ttk.Frame(self)
+        status_bar.pack(fill="x", expand=False, pady=(8, 0))
+        self.status_label = ttk.Label(status_bar, text="Status: Ready")
+        self.status_label.pack(anchor="w", padx=4, pady=(0, 4))
 
     # --- Search Handlers ---
     def start_search_thread(self):
@@ -382,22 +438,46 @@ class MangaDownloader(tk.Tk):
         widget.configure(state="disabled")
 
     def on_chapter_select(self, event):
-        selection = event.widget.curselection()
+        selection = sorted(idx for idx in event.widget.curselection() if 0 <= idx < len(self.series_chapters))
         if not selection:
             return
-        index = selection[0]
-        if 0 <= index < len(self.series_chapters):
-            chapter = self.series_chapters[index]
-            chapter_url = chapter.get("url", "")
-            if chapter_url:
-                self.url_var.set(chapter_url)
-            chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {index + 1}"
+
+        first_index = selection[0]
+        chapter = self.series_chapters[first_index]
+        chapter_url = chapter.get("url", "")
+        if chapter_url:
+            self.url_var.set(chapter_url)
+
+        last_index = selection[-1]
+        self._update_range_from_indices(selection)
+
+        if len(selection) == 1:
+            chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {first_index + 1}"
             self.status_label.config(text=f"Status: Selected {chapter_title}")
-            self.range_start_var.set(str(index + 1))
-            self.range_end_var.set(str(index + 1))
+        else:
+            self.status_label.config(
+                text=f"Status: Selected {len(selection)} chapter(s) ({first_index + 1}–{last_index + 1})"
+            )
 
     def on_chapter_double_click(self, event):
         self.download_selected_chapter()
+
+    def _on_select_all_chapters(self, _event=None):
+        if not self.series_chapters:
+            return "break"
+        self.chapters_listbox.selection_set(0, tk.END)
+        selection = list(range(len(self.series_chapters)))
+        self._update_range_from_indices(selection)
+        self._set_status(f"Status: Selected all {len(selection)} chapter(s).")
+        return "break"
+
+    def _update_range_from_indices(self, indices):
+        if not indices:
+            return
+        first_index = indices[0]
+        last_index = indices[-1]
+        self.range_start_var.set(str(first_index + 1))
+        self.range_end_var.set(str(last_index + 1))
 
     def download_selected_chapter(self):
         selection = self.chapters_listbox.curselection()
@@ -422,33 +502,15 @@ class MangaDownloader(tk.Tk):
         self._enqueue_chapter_downloads(chapter_items)
 
     def download_range(self):
-        if not self.series_chapters:
-            self._set_status("Status: Load a series before downloading a range.")
+        range_bounds = self._get_range_indices()
+        if range_bounds is None:
             return
 
-        try:
-            start = int(self.range_start_var.get())
-            end = int(self.range_end_var.get())
-        except (TypeError, ValueError):
-            self._set_status("Status: Invalid range. Use numeric values like 1 and 5.")
-            return
-
-        if start <= 0 or end <= 0:
-            self._set_status("Status: Range values must be positive integers.")
-            return
-
-        if start > end:
-            start, end = end, start
-
-        max_index = len(self.series_chapters)
-        start_index = max(1, start)
-        end_index = min(max_index, end)
-        if start_index > end_index:
-            self._set_status("Status: Range does not match any chapters.")
-            return
+        start_index, end_index = range_bounds
+        self._highlight_range_selection(notify=False, bounds=range_bounds)
 
         chapter_items = []
-        for idx in range(start_index - 1, end_index):
+        for idx in range(start_index, end_index + 1):
             chapter = self.series_chapters[idx]
             chapter_url = chapter.get("url", "")
             if not chapter_url:
@@ -462,6 +524,51 @@ class MangaDownloader(tk.Tk):
 
         self.url_var.set(chapter_items[0][0])
         self._enqueue_chapter_downloads(chapter_items)
+
+    def _get_range_indices(self):
+        if not self.series_chapters:
+            self._set_status("Status: Load a series before selecting a range.")
+            return None
+
+        try:
+            start = int(self.range_start_var.get())
+            end = int(self.range_end_var.get())
+        except (TypeError, ValueError):
+            self._set_status("Status: Invalid range. Use numeric values like 1 and 5.")
+            return None
+
+        if start <= 0 or end <= 0:
+            self._set_status("Status: Range values must be positive integers.")
+            return None
+
+        if start > end:
+            start, end = end, start
+
+        max_index = len(self.series_chapters)
+        start_index = max(1, start) - 1
+        end_index = min(max_index, end) - 1
+        if start_index > end_index:
+            self._set_status("Status: Range does not match any chapters.")
+            return None
+
+        return start_index, end_index
+
+    def _highlight_range_selection(self, notify=True, bounds=None):
+        range_bounds = bounds or self._get_range_indices()
+        if range_bounds is None:
+            return
+
+        start_index, end_index = range_bounds
+        self.chapters_listbox.selection_clear(0, tk.END)
+        self.chapters_listbox.selection_set(start_index, end_index)
+        self.chapters_listbox.see(start_index)
+        self.chapters_listbox.see(end_index)
+        selection = list(range(start_index, end_index + 1))
+        self._update_range_from_indices(selection)
+        if notify:
+            self._set_status(
+                f"Status: Highlighted chapters {start_index + 1}–{end_index + 1}."
+            )
 
     def download_all_chapters(self):
         if not self.series_chapters:
@@ -508,13 +615,15 @@ class MangaDownloader(tk.Tk):
 
     def _submit_download_task(self, url, initial_label):
         self._ensure_chapter_executor()
+        queue_label = initial_label or self._derive_queue_label(url)
+        queue_id = self._register_queue_item(queue_label, url)
         with self.queue_lock:
             self.pending_downloads += 1
             self.total_downloads += 1
         self._update_queue_status()
         self._update_queue_progress()
-        future = self.chapter_executor.submit(self._download_chapter_worker, url, initial_label)
-        future.add_done_callback(self._on_download_task_done)
+        future = self.chapter_executor.submit(self._download_chapter_worker, queue_id, url, initial_label)
+        future.add_done_callback(lambda fut, qid=queue_id: self._on_download_task_done(qid, fut))
 
     def _ensure_chapter_executor(self, force_reset=False):
         desired_workers = self._clamp_value(self._chapter_workers_value, 1, 10, 1)
@@ -550,7 +659,7 @@ class MangaDownloader(tk.Tk):
         if value != self._image_workers_value or event is None:
             self._image_workers_value = value
 
-    def _on_download_start(self, label):
+    def _on_download_start(self, label, queue_id):
         nice_label = label or "chapter"
         with self.queue_lock:
             if self.pending_downloads > 0:
@@ -558,10 +667,11 @@ class MangaDownloader(tk.Tk):
             self.active_downloads += 1
         self._update_queue_status()
         self._update_queue_progress()
+        self._queue_set_status(queue_id, "Starting download…", state="running")
+        self._queue_reset_progress(queue_id, 1)
         self._set_status(f"Status: Downloading {nice_label}...")
-        self._set_progress(maximum=1, value=0)
 
-    def _on_download_end(self, label):
+    def _on_download_end(self, label, _queue_id):
         with self.queue_lock:
             if self.active_downloads > 0:
                 self.active_downloads -= 1
@@ -578,7 +688,6 @@ class MangaDownloader(tk.Tk):
                     self.total_downloads = 0
                     self.completed_downloads = 0
             self._update_queue_progress()
-            self._set_progress(maximum=1, value=0)
             self._set_status("Status: Ready")
 
     def _update_queue_status(self):
@@ -606,18 +715,6 @@ class MangaDownloader(tk.Tk):
 
     def _set_status(self, message):
         self.after(0, lambda: self.status_label.config(text=message))
-
-    def _set_progress(self, maximum=None, value=None):
-        def update():
-            if maximum is not None:
-                max_value = max(1, maximum)
-                self.progress["maximum"] = max_value
-                if value is None and self.progress["value"] > max_value:
-                    self.progress["value"] = max_value
-            if value is not None:
-                self.progress["value"] = min(self.progress["maximum"], value)
-
-        self.after(0, update)
 
     def _clamp_value(self, value, minimum, maximum, default):
         try:
@@ -660,12 +757,134 @@ class MangaDownloader(tk.Tk):
         chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {index + 1}"
         return f"{index + 1:03d} • {chapter_title}"
 
-    def _download_chapter_worker(self, url, initial_label):
+    def _derive_queue_label(self, url):
+        if not url:
+            return "Chapter"
+        parsed = urlparse(url)
+        tail = os.path.basename(parsed.path.rstrip("/"))
+        return tail or url
+
+    def _register_queue_item(self, label, url):
+        display = label or url or "Pending chapter"
+        queue_id = self._queue_item_sequence
+        self._queue_item_sequence += 1
+
+        item_frame = ttk.Frame(self.queue_items_container)
+        item_frame.pack(fill="x", expand=False, padx=8, pady=4)
+
+        title_var = tk.StringVar(value=display)
+        title_label = ttk.Label(item_frame, textvariable=title_var, font=("TkDefaultFont", 10, "bold"))
+        title_label.pack(anchor="w")
+
+        status_var = tk.StringVar(value="Pending")
+        status_label = ttk.Label(item_frame, textvariable=status_var)
+        status_label.pack(anchor="w", pady=(2, 0))
+
+        progress = ttk.Progressbar(item_frame, orient="horizontal", mode="determinate")
+        progress.pack(fill="x", pady=(4, 0))
+        progress["maximum"] = 1
+        progress["value"] = 0
+
+        self.queue_items[queue_id] = {
+            "frame": item_frame,
+            "title_var": title_var,
+            "status_var": status_var,
+            "status_label": status_label,
+            "progress": progress,
+            "maximum": 1,
+            "url": url,
+        }
+
+        self._scroll_queue_to_bottom()
+        return queue_id
+
+    def _queue_update_title(self, queue_id, title):
+        def _update():
+            item = self.queue_items.get(queue_id)
+            if not item:
+                return
+            item["title_var"].set(title)
+
+        self.after(0, _update)
+
+    def _queue_set_status(self, queue_id, text, state=None):
+        def _update():
+            item = self.queue_items.get(queue_id)
+            if not item:
+                return
+            item["status_var"].set(text)
+            status_label = item["status_label"]
+            if state == "success":
+                status_label.configure(foreground="#1a7f37")
+            elif state == "error":
+                status_label.configure(foreground="#b91c1c")
+            elif state == "running":
+                status_label.configure(foreground="#1d4ed8")
+            else:
+                status_label.configure(foreground="")
+
+        self.after(0, _update)
+
+    def _queue_reset_progress(self, queue_id, maximum):
+        maximum = max(1, maximum)
+
+        def _update():
+            item = self.queue_items.get(queue_id)
+            if not item:
+                return
+            item["maximum"] = maximum
+            progress = item["progress"]
+            progress["maximum"] = maximum
+            progress["value"] = 0
+
+        self.after(0, _update)
+
+    def _queue_update_progress(self, queue_id, completed, total=None):
+        def _update():
+            item = self.queue_items.get(queue_id)
+            if not item:
+                return
+            if total is not None:
+                maximum = max(1, total)
+                item["maximum"] = maximum
+                item["progress"]["maximum"] = maximum
+            maximum = item.get("maximum") or 1
+            value = max(0, min(maximum, completed))
+            item["progress"]["value"] = value
+
+        self.after(0, _update)
+
+    def _queue_mark_finished(self, queue_id, success=True, message=None):
+        text = message or ("Completed" if success else "Failed")
+        state = "success" if success else "error"
+
+        def _update():
+            item = self.queue_items.get(queue_id)
+            if not item:
+                return
+            maximum = item.get("maximum") or 1
+            progress = item["progress"]
+            progress["maximum"] = maximum
+            if success:
+                progress["value"] = maximum
+
+        self.after(0, _update)
+        self._queue_set_status(queue_id, text, state=state)
+
+    def _scroll_queue_to_bottom(self):
+        def _scroll():
+            self.queue_canvas.update_idletasks()
+            self.queue_canvas.yview_moveto(1.0)
+
+        self.after(50, _scroll)
+
+    def _download_chapter_worker(self, queue_id, url, initial_label):
         display_label = initial_label or url
-        self._on_download_start(display_label)
+        self._on_download_start(display_label, queue_id)
         scraper = cloudscraper.create_scraper()
         chapter_display = display_label
         try:
+            self._queue_set_status(queue_id, "Fetching chapter page…", state="running")
             self._set_status(f"Status: Fetching {display_label}...")
             response = scraper.get(url)
             response.raise_for_status()
@@ -673,60 +892,83 @@ class MangaDownloader(tk.Tk):
 
             parsed_data = None
             for parser in ALL_PARSERS:
-                self._set_status(f"Status: {display_label} • trying parser {parser.get_name()}...")
+                parser_name = parser.get_name()
+                self._queue_set_status(queue_id, f"Parsing with {parser_name}…", state="running")
+                self._set_status(f"Status: {display_label} • trying parser {parser_name}...")
                 if parser.can_parse(soup, url):
                     parsed_data = parser.parse(soup, url)
                     if parsed_data:
                         break
 
             if not parsed_data:
+                self._queue_mark_finished(queue_id, success=False, message="No suitable parser found.")
                 self._set_status("Status: Error - No suitable parser found for this URL.")
                 return
 
             title = parsed_data["title"]
             chapter = parsed_data["chapter"]
             chapter_display = f"{title} — {chapter}"
+            self._queue_update_title(queue_id, chapter_display)
+            self._queue_set_status(queue_id, "Preparing download…", state="running")
+
             image_urls = parsed_data["image_urls"]
+
+            if not image_urls:
+                self._queue_mark_finished(queue_id, success=False, message="No images found.")
+                self._set_status(f"Status: {chapter_display} • No images found to download.")
+                return
 
             base_dir = self._resolve_download_base_dir()
             if not base_dir:
+                self._queue_mark_finished(queue_id, success=False, message="Download directory unavailable.")
                 return
             download_dir = os.path.join(base_dir, f"{title}_{chapter}")
             os.makedirs(download_dir, exist_ok=True)
 
             failed_downloads = self._download_images_concurrently(
-                scraper, image_urls, download_dir, chapter_display
+                scraper, image_urls, download_dir, chapter_display, queue_id
             )
 
             if failed_downloads and len(failed_downloads) == len(image_urls):
+                self._queue_mark_finished(queue_id, success=False, message="All image downloads failed.")
                 self._set_status(f"Status: Failed to download images for {chapter_display}.")
                 return
 
-            self._create_pdf(download_dir, title, chapter, chapter_display)
+            self._queue_set_status(queue_id, "Converting to PDF…", state="running")
+            pdf_created = self._create_pdf(download_dir, title, chapter, chapter_display)
+            if not pdf_created:
+                self._queue_mark_finished(queue_id, success=False, message="No images available for PDF.")
+                return
+
             if failed_downloads:
-                self._set_status(
-                    f"Status: Completed {chapter_display} with {len(failed_downloads)} failed image(s)."
-                )
+                failures = len(failed_downloads)
+                message = f"Completed with {failures} failed image(s)."
+                self._queue_mark_finished(queue_id, success=True, message=message)
+                self._set_status(f"Status: Completed {chapter_display} with {failures} failed image(s).")
             else:
+                self._queue_mark_finished(queue_id, success=True, message="Completed")
                 self._set_status(f"Status: Completed {chapter_display}.")
         except requests.RequestException as exc:
+            self._queue_mark_finished(queue_id, success=False, message=f"Network error: {exc}")
             self._set_status(f"Status: Error - Failed to fetch {display_label}: {exc}")
             raise
         except Exception as exc:
+            self._queue_mark_finished(queue_id, success=False, message=f"Error: {exc}")
             self._set_status(f"Status: Error - Download failed for {chapter_display}: {exc}")
             raise
         finally:
-            self._on_download_end(display_label)
+            self._on_download_end(display_label, queue_id)
 
-    def _download_images_concurrently(self, scraper, image_urls, download_dir, chapter_display):
+    def _download_images_concurrently(self, scraper, image_urls, download_dir, chapter_display, queue_id):
         total_images = len(image_urls)
         if total_images == 0:
+            self._queue_mark_finished(queue_id, success=False, message="No images found.")
             self._set_status(f"Status: {chapter_display} • No images found to download.")
-            self._set_progress(maximum=1, value=0)
             return []
 
         workers = self._clamp_value(self._image_workers_value or 4, 1, 32, 4)
-        self._set_progress(maximum=total_images, value=0)
+        self._queue_reset_progress(queue_id, total_images)
+        self._queue_set_status(queue_id, f"Downloading images (0/{total_images})…", state="running")
         self._set_status(f"Status: {chapter_display} • Downloading images...")
 
         failed = []
@@ -755,12 +997,26 @@ class MangaDownloader(tk.Tk):
                 with progress_lock:
                     completed += 1
                     current_completed = completed
-                self._set_progress(value=current_completed)
+                self._queue_update_progress(queue_id, current_completed)
+                self._queue_set_status(
+                    queue_id,
+                    f"Downloading images ({current_completed}/{total_images})…",
+                    state="running",
+                )
                 self._set_status(
                     f"Status: {chapter_display} • {current_completed}/{total_images} image(s) downloaded"
                 )
                 if not success and error_url:
                     failed.append(error_url)
+
+        if failed:
+            self._queue_set_status(
+                queue_id,
+                f"Images downloaded with {len(failed)} failure(s).",
+                state="running",
+            )
+        else:
+            self._queue_set_status(queue_id, "Images downloaded.", state="running")
 
         return failed
 
@@ -785,7 +1041,7 @@ class MangaDownloader(tk.Tk):
 
         if not image_files:
             self._set_status(f"Status: {chapter_display} • No images found to create PDF.")
-            return
+            return False
 
         pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
         images = []
@@ -802,14 +1058,18 @@ class MangaDownloader(tk.Tk):
                     append_images=rest,
                 )
                 self._set_status(f"Status: {chapter_display} • PDF saved to {pdf_path}")
+                return True
         finally:
             for image in images:
                 image.close()
+        return False
 
-    def _on_download_task_done(self, future):
+    def _on_download_task_done(self, queue_id, future):
         try:
             future.result()
         except Exception as exc:  # noqa: BLE001
+            message = str(exc)
+            self._queue_set_status(queue_id, f"Failed: {message}", state="error")
             print(f"Download task failed: {exc}")
 
     def on_close(self):
