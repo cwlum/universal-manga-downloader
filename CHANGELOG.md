@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/cwlum/bato-downloader/compare/v1.0.0...v1.0.1) (2025-10-09)
+
+
+### Bug Fixes
+
+* Configure release-please and sync version ([1a6aa68](https://github.com/cwlum/bato-downloader/commit/1a6aa68d3c6ff482ee8c560697281fde3778828b))
+
 ## 1.0.0 (2025-10-09)
 
 
