@@ -6,7 +6,7 @@ import os
 import threading
 import re
 from urllib.parse import urlparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, CancelledError
 
 # --- Auto-install required packages ---
 def install_and_import(package, import_name=None):
@@ -17,9 +17,25 @@ def install_and_import(package, import_name=None):
     except ImportError:
         print(f"{package} not found. Installing...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--break-system-packages"])
-            print(f"{package} installed successfully.")
-            __import__(import_name)
+            base_cmd = [sys.executable, "-m", "pip", "install", package]
+            commands = []
+            if sys.platform.startswith("linux"):
+                commands.append(base_cmd + ["--break-system-packages"])
+            commands.append(base_cmd)
+
+            last_error = None
+            for cmd in commands:
+                try:
+                    subprocess.check_call(cmd)
+                except subprocess.CalledProcessError as exc:
+                    last_error = exc
+                    continue
+                else:
+                    print(f"{package} installed successfully.")
+                    __import__(import_name)
+                    break
+            else:
+                raise last_error or RuntimeError("pip installation failed")
         except Exception as e:
             print(f"Failed to install {package}. Please install it manually using: python -m pip install {package}")
             print(f"Error: {e}")
@@ -78,13 +94,21 @@ class MangaDownloader(tk.Tk):
         self.completed_downloads = 0
         self.queue_items = {}
         self._queue_item_sequence = 0
+        self._scroll_remainders = {}
+        self._deferred_downloads = []
+        self._chapter_futures = {}
+        self._cancelled_queue_ids = set()
+        self._paused_queue_ids = set()
+        self._downloads_paused = False
+        self.pause_button = None
+        self.cancel_pending_button = None
 
         self._build_ui()
-
-        # Global mouse wheel binding
-        self.bind_all("<MouseWheel>", self._on_mousewheel_global)
-        self.bind_all("<Button-4>", self._on_mousewheel_global)
-        self.bind_all("<Button-5>", self._on_mousewheel_global)
+        self._bind_mousewheel_area(self.search_results_listbox)
+        self._bind_mousewheel_area(self.series_info_text)
+        self._bind_mousewheel_area(self.chapters_listbox)
+        self._bind_mousewheel_area(self.queue_canvas)
+        self._bind_mousewheel_area(self.queue_items_container, target=self.queue_canvas)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self._ensure_chapter_executor(force_reset=True)
@@ -255,8 +279,6 @@ class MangaDownloader(tk.Tk):
 
         self.queue_items_container.bind("<Configure>", _sync_queue_scrollregion)
 
-        # Mouse wheel scrolling is now handled globally.
-
         queue_footer = ttk.LabelFrame(self.queue_tab, text="Queue Overview")
         queue_footer.pack(fill="x", expand=False, padx=10, pady=(0, 12))
 
@@ -273,6 +295,18 @@ class MangaDownloader(tk.Tk):
         ttk.Button(queue_controls_frame, text="Clear Finished", command=self._clear_finished_queue_items).pack(
             side="right"
         )
+        self.cancel_pending_button = ttk.Button(
+            queue_controls_frame,
+            text="Cancel Pending",
+            command=self._cancel_pending_downloads,
+        )
+        self.cancel_pending_button.pack(side="right", padx=(0, 8))
+        self.pause_button = ttk.Button(
+            queue_controls_frame,
+            text="Pause Downloads",
+            command=self._toggle_download_pause,
+        )
+        self.pause_button.pack(side="right", padx=(0, 8))
 
         # --- Settings Tab ---
         settings_frame = ttk.LabelFrame(self.settings_tab, text="Download Settings")
@@ -633,16 +667,136 @@ class MangaDownloader(tk.Tk):
             self._set_status("Status: No chapters were queued for download.")
 
     def _submit_download_task(self, url, initial_label):
-        self._ensure_chapter_executor()
         queue_label = initial_label or self._derive_queue_label(url)
-        queue_id = self._register_queue_item(queue_label, url)
+        queue_id = self._register_queue_item(queue_label, url, initial_label)
         with self.queue_lock:
             self.pending_downloads += 1
             self.total_downloads += 1
         self._update_queue_status()
         self._update_queue_progress()
+        if self._downloads_paused:
+            self._queue_set_status(queue_id, "Paused", state="paused")
+            self._deferred_downloads.append((queue_id, url, initial_label))
+            return
+
+        self._start_download_future(queue_id, url, initial_label)
+
+    def _start_download_future(self, queue_id, url, initial_label):
+        if self._downloads_paused:
+            self._queue_set_status(queue_id, "Paused", state="paused")
+            self._deferred_downloads.append((queue_id, url, initial_label))
+            return
+
+        self._ensure_chapter_executor()
         future = self.chapter_executor.submit(self._download_chapter_worker, queue_id, url, initial_label)
+        self._chapter_futures[queue_id] = future
+        self._queue_set_status(queue_id, "Queued", state="pending")
         future.add_done_callback(lambda fut, qid=queue_id: self._on_download_task_done(qid, fut))
+
+    def _toggle_download_pause(self):
+        if self._downloads_paused:
+            self._resume_downloads()
+        else:
+            self._pause_downloads()
+
+    def _pause_downloads(self):
+        if self._downloads_paused:
+            return
+
+        self._downloads_paused = True
+        if self.pause_button is not None:
+            self.pause_button.config(text="Resume Downloads")
+
+        paused_now = 0
+        for queue_id, future in list(self._chapter_futures.items()):
+            if future.cancel():
+                self._chapter_futures.pop(queue_id, None)
+                item = self.queue_items.get(queue_id, {})
+                url = item.get("url")
+                initial_label = item.get("initial_label")
+                if url:
+                    self._deferred_downloads.append((queue_id, url, initial_label))
+                    self._queue_set_status(queue_id, "Paused", state="paused")
+                    self._paused_queue_ids.add(queue_id)
+                    paused_now += 1
+
+        if self._deferred_downloads:
+            for queue_id, *_ in self._deferred_downloads:
+                self._queue_set_status(queue_id, "Paused", state="paused")
+
+        message = "Status: Downloads paused."
+        if paused_now:
+            message = f"Status: Paused downloads (moved {paused_now} pending job(s))."
+        self._set_status(message)
+        self._update_queue_status()
+
+    def _resume_downloads(self):
+        if not self._downloads_paused:
+            return
+
+        self._downloads_paused = False
+        if self.pause_button is not None:
+            self.pause_button.config(text="Pause Downloads")
+
+        deferred = self._deferred_downloads
+        self._deferred_downloads = []
+        resumed = 0
+        for queue_id, url, initial_label in deferred:
+            self._paused_queue_ids.discard(queue_id)
+            self._start_download_future(queue_id, url, initial_label)
+            resumed += 1
+
+        if resumed:
+            self._set_status(f"Status: Resumed {resumed} paused download(s).")
+        else:
+            self._set_status("Status: Downloads resumed.")
+        self._update_queue_status()
+
+    def _cancel_pending_downloads(self):
+        cancelled_ids = []
+        remaining_active = 0
+
+        if self._deferred_downloads:
+            for queue_id, *_ in self._deferred_downloads:
+                cancelled_ids.append(queue_id)
+                self._paused_queue_ids.discard(queue_id)
+            self._deferred_downloads = []
+
+        for queue_id, future in list(self._chapter_futures.items()):
+            if future.cancel():
+                self._chapter_futures.pop(queue_id, None)
+                self._cancelled_queue_ids.add(queue_id)
+                self._paused_queue_ids.discard(queue_id)
+                cancelled_ids.append(queue_id)
+            else:
+                remaining_active += 1
+
+        if not cancelled_ids:
+            if remaining_active:
+                self._set_status("Status: Unable to cancel active downloads.")
+            else:
+                self._set_status("Status: No pending downloads to cancel.")
+            return
+
+        for queue_id in cancelled_ids:
+            self._mark_queue_cancelled(queue_id)
+
+        with self.queue_lock:
+            for _ in cancelled_ids:
+                if self.pending_downloads > 0:
+                    self.pending_downloads -= 1
+                if self.total_downloads > 0:
+                    self.total_downloads -= 1
+            if self.completed_downloads > self.total_downloads:
+                self.completed_downloads = self.total_downloads
+
+        self._update_queue_status()
+        self._update_queue_progress()
+        self._set_status(f"Status: Cancelled {len(cancelled_ids)} download(s).")
+
+    def _mark_queue_cancelled(self, queue_id):
+        self._queue_reset_progress(queue_id, 1)
+        self._queue_set_status(queue_id, "Cancelled", state="cancelled")
 
     def _ensure_chapter_executor(self, force_reset=False):
         desired_workers = self._clamp_value(self._chapter_workers_value, 1, 10, 1)
@@ -714,8 +868,15 @@ class MangaDownloader(tk.Tk):
             active = self.active_downloads
             pending = self.pending_downloads
 
-        queue_text = f"Queue • Active: {active} | Pending: {pending}"
-        self.after(0, lambda: self.queue_status_var.set(queue_text))
+        paused = self._downloads_paused
+
+        def _update():
+            queue_text = f"Queue • Active: {active} | Pending: {pending}"
+            if paused:
+                queue_text += " • Paused"
+            self.queue_status_var.set(queue_text)
+
+        self.after(0, _update)
 
     def _update_queue_progress(self):
         with self.queue_lock:
@@ -783,7 +944,7 @@ class MangaDownloader(tk.Tk):
         tail = os.path.basename(parsed.path.rstrip("/"))
         return tail or url
 
-    def _register_queue_item(self, label, url):
+    def _register_queue_item(self, label, url, initial_label):
         display = label or url or "Pending chapter"
         queue_id = self._queue_item_sequence
         self._queue_item_sequence += 1
@@ -812,10 +973,11 @@ class MangaDownloader(tk.Tk):
             "progress": progress,
             "maximum": 1,
             "url": url,
-            "state": "pending",  # pending, running, success, error
+            "initial_label": initial_label,
+            "state": "pending",  # pending, running, success, error, paused, cancelled
         }
 
-        # Mouse wheel scrolling is now handled globally.
+        self._bind_mousewheel_area(item_frame, target=self.queue_canvas)
 
         self._scroll_queue_to_bottom()
         return queue_id
@@ -844,6 +1006,10 @@ class MangaDownloader(tk.Tk):
                 status_label.configure(foreground="#b91c1c")
             elif state == "running":
                 status_label.configure(foreground="#1d4ed8")
+            elif state == "paused":
+                status_label.configure(foreground="#d97706")
+            elif state == "cancelled":
+                status_label.configure(foreground="#6b7280")
             else:
                 status_label.configure(foreground="")
 
@@ -902,58 +1068,81 @@ class MangaDownloader(tk.Tk):
 
         self.after(50, _scroll)
 
-    def _on_mousewheel_global(self, event):
-        # Find the widget under the cursor
-        x, y = self.winfo_pointerxy()
-        widget_at_cursor = self.winfo_containing(x, y)
-        if widget_at_cursor is None:
+    def _bind_mousewheel_area(self, widget, target=None):
+        if widget is None:
             return
 
-        # Determine which scrollable widget to target
-        target_widget = None
-        w = widget_at_cursor
-        while w is not None:
-            if w == self.queue_canvas:
-                target_widget = self.queue_canvas
-                break
-            if w == self.search_results_listbox:
-                target_widget = self.search_results_listbox
-                break
-            if w == self.series_info_text:
-                target_widget = self.series_info_text
-                break
-            if w == self.chapters_listbox:
-                target_widget = self.chapters_listbox
-                break
-            w = w.master
+        actual_target = target or widget
 
-        if target_widget is None:
-            return
+        def _on_mousewheel(event, scroll_target=actual_target):
+            delta = self._normalize_mousewheel_delta(event)
+            if delta == 0:
+                return "break"
+            self._scroll_target(scroll_target, delta)
+            return "break"
 
-        # Cross-platform scroll wheel logic
-        if sys.platform.startswith("linux"):
+        def _on_linux_wheel(event, scroll_target=actual_target):
             if event.num == 4:
                 delta = -1
             elif event.num == 5:
                 delta = 1
             else:
-                return
-        elif sys.platform == "darwin":  # macOS
-            delta = -event.delta
-        else:  # Windows
-            delta = -1 * (event.delta // 120)
+                return "break"
+            self._scroll_target(scroll_target, delta)
+            return "break"
+
+        widget.bind("<MouseWheel>", _on_mousewheel, add=True)
+        widget.bind("<Button-4>", _on_linux_wheel, add=True)
+        widget.bind("<Button-5>", _on_linux_wheel, add=True)
+
+        for child in widget.winfo_children():
+            self._bind_mousewheel_area(child, target=actual_target)
+
+    def _normalize_mousewheel_delta(self, event):
+        delta = getattr(event, "delta", 0)
+        platform = sys.platform
+
+        if platform.startswith("linux"):
+            return 0
+
+        if platform == "darwin":
+            adjusted = -delta / 120 if abs(delta) >= 120 else -delta
+            if adjusted == 0:
+                return -1 if delta > 0 else 1
+            return adjusted
+
+        if delta == 0:
+            return 0
+
+        return -delta / 120
+
+    def _scroll_target(self, target, delta):
+        if not hasattr(target, "yview_scroll"):
+            return
+
+        if not hasattr(self, "_scroll_remainders"):
+            self._scroll_remainders = {}
+
+        remainder = self._scroll_remainders.get(target, 0.0) + float(delta)
+        steps = int(remainder)
+        remainder -= steps
+        self._scroll_remainders[target] = remainder
+
+        if steps == 0:
+            return
 
         try:
-            target_widget.yview_scroll(delta, "units")
+            target.yview_scroll(steps, "units")
         except tk.TclError:
-            # This can happen if the widget is not scrollable, although we've tried to filter.
             pass
 
 
 
     def _clear_finished_queue_items(self):
         ids_to_remove = [
-            qid for qid, item in self.queue_items.items() if item.get("state") in ("success", "error")
+            qid
+            for qid, item in self.queue_items.items()
+            if item.get("state") in ("success", "error", "cancelled")
         ]
         if not ids_to_remove:
             self._set_status("Status: No finished items to clear.")
@@ -1153,8 +1342,20 @@ class MangaDownloader(tk.Tk):
         return False
 
     def _on_download_task_done(self, queue_id, future):
+        self._chapter_futures.pop(queue_id, None)
+
+        if queue_id in self._paused_queue_ids:
+            self._paused_queue_ids.discard(queue_id)
+            return
+
+        if queue_id in self._cancelled_queue_ids:
+            self._cancelled_queue_ids.discard(queue_id)
+            return
+
         try:
             future.result()
+        except CancelledError:
+            return
         except Exception as exc:  # noqa: BLE001
             message = str(exc)
             self._queue_set_status(queue_id, f"Failed: {message}", state="error")
