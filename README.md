@@ -1,6 +1,6 @@
-# Universal Manga Downloader (v4.0.1)
+# Universal Manga Downloader (v1.0.1)
 
-![Version](https://img.shields.io/badge/version-4.0.1-purple)
+![Version](https://img.shields.io/badge/version-1.0.1-purple)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
