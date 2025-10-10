@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-1.0.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--07-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--10-informational)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
 
