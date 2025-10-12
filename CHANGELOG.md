@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/cwlum/bato-downloader/compare/v1.0.1...v1.1.0) (2025-10-12)
+
+
+### Features
+
+* restructure downloader architecture, add CI/tooling docs, fix Bato search, and bump to v1.0.2 ([6fcda71](https://github.com/cwlum/bato-downloader/commit/6fcda71f48a76d9e9f8a84d96c94f71d623d3889))
+
 ## [1.0.1](https://github.com/cwlum/bato-downloader/compare/v1.0.0...v1.0.1) (2025-10-09)
 
 
