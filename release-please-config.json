@@ -4,7 +4,14 @@
     ".": {
       "release-type": "simple",
       "changelog-path": "CHANGELOG.md",
-      "component": "manga-downloader"
+      "component": "manga-downloader",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "README.md",
+          "glob": false
+        }
+      ]
     }
   }
 }
