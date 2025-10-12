@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0](https://github.com/cwlum/bato-downloader/compare/v1.1.0...v1.2.0) (2025-10-12)
+
+
+### Features
+
+* add comprehensive test suite and centralized configuration ([efa5971](https://github.com/cwlum/bato-downloader/commit/efa59719d3c3f7c7878e02ebd3ad29f77671d479))
+* add comprehensive test suite and centralized configuration ([efa5971](https://github.com/cwlum/bato-downloader/commit/efa59719d3c3f7c7878e02ebd3ad29f77671d479))
+* add comprehensive test suite and centralized configuration ([2a5357c](https://github.com/cwlum/bato-downloader/commit/2a5357c00a4750a35a51f8e0610aff800476abc6))
+
 ## [1.1.0](https://github.com/cwlum/bato-downloader/compare/v1.0.1...v1.1.0) (2025-10-12)
 
 
