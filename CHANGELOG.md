@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0](https://github.com/cwlum/bato-downloader/compare/v1.2.0...v1.3.0) (2025-10-12)
+
+
+### Features
+
+* add plugin architecture for parsers and converters ([4cfc9c4](https://github.com/cwlum/bato-downloader/commit/4cfc9c461f27c4daf3ae88fae01e6efe93719a7e))
+* add plugin architecture for parsers and converters ([4cfc9c4](https://github.com/cwlum/bato-downloader/commit/4cfc9c461f27c4daf3ae88fae01e6efe93719a7e))
+* add plugin architecture for parsers and converters ([c26ca8a](https://github.com/cwlum/bato-downloader/commit/c26ca8a76cf25d197f44334ba974f9c76b273d48))
+
 ## [1.2.0](https://github.com/cwlum/bato-downloader/compare/v1.1.0...v1.2.0) (2025-10-12)
 
 
@@ -66,4 +75,3 @@
 
 * introduce a safe plugin loader with GUI toggles for enabling or disabling site and converter plugins
 * add bundled PDF and CBZ converter plugins alongside the migrated Bato parser plugin
-
