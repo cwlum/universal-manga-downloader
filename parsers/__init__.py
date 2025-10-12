@@ -1,28 +1,39 @@
-import os
+"""Parser package that automatically registers available site handlers."""
+
+from __future__ import annotations
+
 import importlib
 import inspect
+import logging
+from pathlib import Path
+
 from .base_parser import BaseParser
 
-# Dynamically import all parser modules in this directory
-# and collect the parser classes.
+logger = logging.getLogger(__name__)
 
-# List of all parser classes found
-ALL_PARSERS = []
 
-# Get the directory of the current module
-current_dir = os.path.dirname(__file__)
+def discover_parsers() -> list[type[BaseParser]]:
+    """Import parser modules dynamically and collect their parser classes."""
 
-# Iterate over all files in the directory
-for filename in os.listdir(current_dir):
-    # Check if it's a Python file and not this __init__.py or base_parser.py
-    if filename.endswith('.py') and not filename.startswith('__') and filename != 'base_parser.py':
-        # Import the module
-        module_name = f"parsers.{filename[:-3]}"
+    parser_classes: list[type[BaseParser]] = []
+    current_dir = Path(__file__).parent
+
+    for module_path in current_dir.glob("*.py"):
+        if module_path.name in {"__init__.py", "base_parser.py"}:
+            continue
+
+        module_name = f"{__name__}.{module_path.stem}"
         module = importlib.import_module(module_name)
 
-        # Find all classes in the module that are subclasses of BaseParser
-        for name, obj in inspect.getmembers(module, inspect.isclass):
+        for _, obj in inspect.getmembers(module, inspect.isclass):
             if issubclass(obj, BaseParser) and obj is not BaseParser:
-                ALL_PARSERS.append(obj)
+                parser_classes.append(obj)
 
-print(f"Loaded {len(ALL_PARSERS)} parsers: {[p.get_name() for p in ALL_PARSERS]}")
+    parser_names = ", ".join(sorted(parser.get_name() for parser in parser_classes))
+    logger.debug("Discovered parsers: %s", parser_names or "<none>")
+    return parser_classes
+
+
+ALL_PARSERS = discover_parsers()
+
+__all__ = ["ALL_PARSERS"]

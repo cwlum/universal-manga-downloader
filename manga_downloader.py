@@ -1,65 +1,106 @@
-import tkinter as tk
-from tkinter import ttk, filedialog
-import subprocess
-import sys
+"""Tkinter-based GUI application that orchestrates manga downloads."""
+
+from __future__ import annotations
+
+import logging
 import os
-import threading
 import re
+import sys
+import threading
+import tkinter as tk
+from collections.abc import Sequence
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from enum import Enum
+from tkinter import filedialog, ttk
+from typing import TypedDict, cast
 from urllib.parse import urlparse
-from concurrent.futures import ThreadPoolExecutor, as_completed, CancelledError
 
-# --- Auto-install required packages ---
-def install_and_import(package, import_name=None):
-    if import_name is None:
-        import_name = package
-    try:
-        __import__(import_name)
-    except ImportError:
-        print(f"{package} not found. Installing...")
-        try:
-            base_cmd = [sys.executable, "-m", "pip", "install", package]
-            commands = []
-            if sys.platform.startswith("linux"):
-                commands.append(base_cmd + ["--break-system-packages"])
-            commands.append(base_cmd)
-
-            last_error = None
-            for cmd in commands:
-                try:
-                    subprocess.check_call(cmd)
-                except subprocess.CalledProcessError as exc:
-                    last_error = exc
-                    continue
-                else:
-                    print(f"{package} installed successfully.")
-                    __import__(import_name)
-                    break
-            else:
-                raise last_error or RuntimeError("pip installation failed")
-        except Exception as e:
-            print(f"Failed to install {package}. Please install it manually using: python -m pip install {package}")
-            print(f"Error: {e}")
-            sys.exit(1)
-
-# Check and install packages
-install_and_import("requests")
-install_and_import("beautifulsoup4", "bs4")
-install_and_import("Pillow", "PIL")
-install_and_import("cloudscraper")
-install_and_import("sv_ttk")
-
-# --- Now import everything else ---
-import requests
 import cloudscraper
+import requests  # type: ignore[import-untyped]
+import sv_ttk
 from bs4 import BeautifulSoup
 from PIL import Image
-import sv_ttk
+
 from parsers import ALL_PARSERS
 from services import BatoService
 
 
+class QueueState(str, Enum):
+    """Enumerates the possible lifecycle states for queue items."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+
+
+STATUS_COLORS: dict[QueueState, str] = {
+    QueueState.SUCCESS: "#1a7f37",
+    QueueState.ERROR: "#b91c1c",
+    QueueState.RUNNING: "#1d4ed8",
+    QueueState.PAUSED: "#d97706",
+    QueueState.CANCELLED: "#6b7280",
+}
+
+
+@dataclass(slots=True)
+class QueueItem:
+    """Container for per-chapter queue widgets and metadata."""
+
+    frame: ttk.Frame
+    title_var: tk.StringVar
+    status_var: tk.StringVar
+    status_label: ttk.Label
+    progress: ttk.Progressbar
+    maximum: int = 1
+    url: str = ""
+    initial_label: str | None = None
+    state: QueueState = QueueState.PENDING
+
+
+class SearchResult(TypedDict, total=False):
+    """Shape of entries stored for search results."""
+
+    title: str
+    url: str
+    subtitle: str
+
+
+class SeriesChapter(TypedDict, total=False):
+    """Shape of chapter metadata fetched from `BatoService`."""
+
+    title: str
+    url: str
+    label: str
+
+
+class ParsedChapter(TypedDict):
+    """Structured data returned by individual parser implementations."""
+
+    title: str
+    chapter: str
+    image_urls: list[str]
+
+
+def configure_logging() -> None:
+    """Configure a sensible default logger for the application."""
+
+    if logging.getLogger().handlers:
+        return
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+
 class MangaDownloader(tk.Tk):
-    def __init__(self):
+    """Main application window orchestrating search, queue, and download workflows."""
+
+    def __init__(self) -> None:
         super().__init__()
         self.title("Universal Manga Downloader")
         self.geometry("1100x850")
@@ -68,15 +109,15 @@ class MangaDownloader(tk.Tk):
         sv_ttk.set_theme("dark")
 
         self.bato_service = BatoService()
-        self.search_results = []
-        self.series_data = None
-        self.series_chapters = []
+        self.search_results: list[SearchResult] = []
+        self.series_data: dict[str, object] | None = None
+        self.series_chapters: list[SeriesChapter] = []
         self.queue_lock = threading.Lock()
         self.chapter_executor_lock = threading.Lock()
         self.pending_downloads = 0
         self.active_downloads = 0
-        self.chapter_executor = None
-        self._chapter_executor_workers = None
+        self.chapter_executor: ThreadPoolExecutor | None = None
+        self._chapter_executor_workers: int | None = None
 
         self.chapter_workers_var = tk.IntVar(value=1)
         self.image_workers_var = tk.IntVar(value=4)
@@ -92,16 +133,16 @@ class MangaDownloader(tk.Tk):
         self.image_workers_var.set(self._image_workers_value)
         self.total_downloads = 0
         self.completed_downloads = 0
-        self.queue_items = {}
+        self.queue_items: dict[int, QueueItem] = {}
         self._queue_item_sequence = 0
-        self._scroll_remainders = {}
-        self._deferred_downloads = []
-        self._chapter_futures = {}
-        self._cancelled_queue_ids = set()
-        self._paused_queue_ids = set()
+        self._scroll_remainders: dict[tk.Misc, float] = {}
+        self._deferred_downloads: list[tuple[int, str, str | None]] = []
+        self._chapter_futures: dict[int, Future[None]] = {}
+        self._cancelled_queue_ids: set[int] = set()
+        self._paused_queue_ids: set[int] = set()
         self._downloads_paused = False
-        self.pause_button = None
-        self.cancel_pending_button = None
+        self.pause_button: ttk.Button | None = None
+        self.cancel_pending_button: ttk.Button | None = None
 
         self._build_ui()
         self._bind_mousewheel_area(self.search_results_listbox)
@@ -367,11 +408,13 @@ class MangaDownloader(tk.Tk):
     def _perform_search(self, query):
         try:
             results = self.bato_service.search_manga(query)
-        except requests.RequestException as exc:
-            message = f"Status: Search failed - {exc}"
-            self.after(0, lambda: self._on_search_failure(message))
-        except Exception as exc:
-            self.after(0, lambda: self._on_search_failure(f"Status: Search error - {exc}"))
+        except requests.RequestException as error:
+            message = f"Status: Search failed - {error}"
+            self.after(0, lambda msg=message: self._on_search_failure(msg))
+        except Exception as error:  # noqa: BLE001 - surface unexpected failures
+            logger.exception("Search workflow failed for query %s", query)
+            message = f"Status: Search error - {error}"
+            self.after(0, lambda msg=message: self._on_search_failure(msg))
         else:
             self.after(0, lambda: self._on_search_success(results, query))
 
@@ -436,11 +479,13 @@ class MangaDownloader(tk.Tk):
     def _perform_series_fetch(self, series_url):
         try:
             data = self.bato_service.get_series_info(series_url)
-        except requests.RequestException as exc:
-            message = f"Status: Failed to fetch series info - {exc}"
-            self.after(0, lambda: self._on_series_failure(message))
-        except Exception as exc:
-            self.after(0, lambda: self._on_series_failure(f"Status: Series parsing error - {exc}"))
+        except requests.RequestException as error:
+            message = f"Status: Failed to fetch series info - {error}"
+            self.after(0, lambda msg=message: self._on_series_failure(msg))
+        except Exception as error:  # noqa: BLE001
+            logger.exception("Failed to process series info for %s", series_url)
+            message = f"Status: Series parsing error - {error}"
+            self.after(0, lambda msg=message: self._on_series_failure(msg))
         else:
             self.after(0, lambda: self._on_series_success(data))
 
@@ -666,7 +711,7 @@ class MangaDownloader(tk.Tk):
         else:
             self._set_status("Status: No chapters were queued for download.")
 
-    def _submit_download_task(self, url, initial_label):
+    def _submit_download_task(self, url: str, initial_label: str | None) -> None:
         queue_label = initial_label or self._derive_queue_label(url)
         queue_id = self._register_queue_item(queue_label, url, initial_label)
         with self.queue_lock:
@@ -675,23 +720,33 @@ class MangaDownloader(tk.Tk):
         self._update_queue_status()
         self._update_queue_progress()
         if self._downloads_paused:
-            self._queue_set_status(queue_id, "Paused", state="paused")
+            self._queue_set_status(queue_id, "Paused", state=QueueState.PAUSED)
             self._deferred_downloads.append((queue_id, url, initial_label))
             return
 
         self._start_download_future(queue_id, url, initial_label)
 
-    def _start_download_future(self, queue_id, url, initial_label):
+    def _start_download_future(self, queue_id: int, url: str, initial_label: str | None) -> None:
         if self._downloads_paused:
-            self._queue_set_status(queue_id, "Paused", state="paused")
+            self._queue_set_status(queue_id, "Paused", state=QueueState.PAUSED)
             self._deferred_downloads.append((queue_id, url, initial_label))
             return
 
         self._ensure_chapter_executor()
-        future = self.chapter_executor.submit(self._download_chapter_worker, queue_id, url, initial_label)
+        assert self.chapter_executor is not None
+        future: Future[None] = self.chapter_executor.submit(
+            self._download_chapter_worker,
+            queue_id,
+            url,
+            initial_label,
+        )
         self._chapter_futures[queue_id] = future
-        self._queue_set_status(queue_id, "Queued", state="pending")
-        future.add_done_callback(lambda fut, qid=queue_id: self._on_download_task_done(qid, fut))
+        self._queue_set_status(queue_id, "Queued", state=QueueState.PENDING)
+
+        def _on_done(fut: Future[None], *, queue_id: int = queue_id) -> None:
+            self._on_download_task_done(queue_id, fut)
+
+        future.add_done_callback(_on_done)
 
     def _toggle_download_pause(self):
         if self._downloads_paused:
@@ -711,18 +766,18 @@ class MangaDownloader(tk.Tk):
         for queue_id, future in list(self._chapter_futures.items()):
             if future.cancel():
                 self._chapter_futures.pop(queue_id, None)
-                item = self.queue_items.get(queue_id, {})
-                url = item.get("url")
-                initial_label = item.get("initial_label")
+                item = self.queue_items.get(queue_id)
+                url = item.url if item else None
+                initial_label = item.initial_label if item else None
                 if url:
                     self._deferred_downloads.append((queue_id, url, initial_label))
-                    self._queue_set_status(queue_id, "Paused", state="paused")
+                    self._queue_set_status(queue_id, "Paused", state=QueueState.PAUSED)
                     self._paused_queue_ids.add(queue_id)
                     paused_now += 1
 
         if self._deferred_downloads:
             for queue_id, *_ in self._deferred_downloads:
-                self._queue_set_status(queue_id, "Paused", state="paused")
+                self._queue_set_status(queue_id, "Paused", state=QueueState.PAUSED)
 
         message = "Status: Downloads paused."
         if paused_now:
@@ -752,8 +807,8 @@ class MangaDownloader(tk.Tk):
             self._set_status("Status: Downloads resumed.")
         self._update_queue_status()
 
-    def _cancel_pending_downloads(self):
-        cancelled_ids = []
+    def _cancel_pending_downloads(self) -> None:
+        cancelled_ids: list[int] = []
         remaining_active = 0
 
         if self._deferred_downloads:
@@ -794,9 +849,9 @@ class MangaDownloader(tk.Tk):
         self._update_queue_progress()
         self._set_status(f"Status: Cancelled {len(cancelled_ids)} download(s).")
 
-    def _mark_queue_cancelled(self, queue_id):
+    def _mark_queue_cancelled(self, queue_id: int) -> None:
         self._queue_reset_progress(queue_id, 1)
-        self._queue_set_status(queue_id, "Cancelled", state="cancelled")
+        self._queue_set_status(queue_id, "Cancelled", state=QueueState.CANCELLED)
 
     def _ensure_chapter_executor(self, force_reset=False):
         desired_workers = self._clamp_value(self._chapter_workers_value, 1, 10, 1)
@@ -832,7 +887,7 @@ class MangaDownloader(tk.Tk):
         if value != self._image_workers_value or event is None:
             self._image_workers_value = value
 
-    def _on_download_start(self, label, queue_id):
+    def _on_download_start(self, label: str | None, queue_id: int) -> None:
         nice_label = label or "chapter"
         with self.queue_lock:
             if self.pending_downloads > 0:
@@ -840,11 +895,11 @@ class MangaDownloader(tk.Tk):
             self.active_downloads += 1
         self._update_queue_status()
         self._update_queue_progress()
-        self._queue_set_status(queue_id, "Starting download…", state="running")
+        self._queue_set_status(queue_id, "Starting download…", state=QueueState.RUNNING)
         self._queue_reset_progress(queue_id, 1)
         self._set_status(f"Status: Downloading {nice_label}...")
 
-    def _on_download_end(self, label, _queue_id):
+    def _on_download_end(self, label: str | None, _queue_id: int) -> None:
         with self.queue_lock:
             if self.active_downloads > 0:
                 self.active_downloads -= 1
@@ -863,7 +918,7 @@ class MangaDownloader(tk.Tk):
             self._update_queue_progress()
             self._set_status("Status: Ready")
 
-    def _update_queue_status(self):
+    def _update_queue_status(self) -> None:
         with self.queue_lock:
             active = self.active_downloads
             pending = self.pending_downloads
@@ -878,7 +933,7 @@ class MangaDownloader(tk.Tk):
 
         self.after(0, _update)
 
-    def _update_queue_progress(self):
+    def _update_queue_progress(self) -> None:
         with self.queue_lock:
             total = self.total_downloads
             completed = min(self.completed_downloads, total)
@@ -893,12 +948,24 @@ class MangaDownloader(tk.Tk):
 
         self.after(0, update)
 
-    def _set_status(self, message):
+    def _set_status(self, message: str) -> None:
+        """Safely update the status label from any worker context."""
+
         self.after(0, lambda: self.status_label.config(text=message))
 
-    def _clamp_value(self, value, minimum, maximum, default):
+    def _clamp_value(
+        self,
+        value: int | float | str | None,
+        minimum: int | None,
+        maximum: int | None,
+        default: int,
+    ) -> int:
+        int_value = default
         try:
-            int_value = int(value)
+            if isinstance(value, (int, float)):
+                int_value = int(value)
+            elif isinstance(value, str) and value.strip():
+                int_value = int(value)
         except (TypeError, ValueError, tk.TclError):
             int_value = default
         if minimum is not None:
@@ -907,17 +974,17 @@ class MangaDownloader(tk.Tk):
             int_value = min(maximum, int_value)
         return int_value
 
-    def _browse_download_dir(self):
+    def _browse_download_dir(self) -> None:
         initial_dir = self.download_dir_path or self._get_default_download_root()
         directory = filedialog.askdirectory(initialdir=initial_dir)
         if directory:
             self.download_dir_var.set(directory)
 
-    def _on_download_dir_var_write(self, *_):
+    def _on_download_dir_var_write(self, *_: object) -> None:
         value = self.download_dir_var.get()
         self.download_dir_path = value.strip() if isinstance(value, str) else ""
 
-    def _resolve_download_base_dir(self):
+    def _resolve_download_base_dir(self) -> str | None:
         base = self.download_dir_path or self._get_default_download_root()
         base = os.path.abspath(os.path.expanduser(base))
         try:
@@ -927,24 +994,33 @@ class MangaDownloader(tk.Tk):
             return None
         return base
 
-    def _get_default_download_root(self):
+    def _get_default_download_root(self) -> str:
         downloads = os.path.join(os.path.expanduser("~"), "Downloads")
         if os.path.isdir(downloads):
             return downloads
         return os.path.expanduser("~")
 
-    def _format_chapter_label(self, index, chapter):
+    def _format_chapter_label(self, index: int, chapter: SeriesChapter) -> str:
+        """Return a human-readable label for a queued chapter."""
+
         chapter_title = chapter.get("title") or chapter.get("label") or f"Chapter {index + 1}"
         return f"{index + 1:03d} • {chapter_title}"
 
-    def _derive_queue_label(self, url):
+    def _derive_queue_label(self, url: str) -> str:
+        """Fallback label when we only know the chapter URL."""
+
         if not url:
             return "Chapter"
         parsed = urlparse(url)
         tail = os.path.basename(parsed.path.rstrip("/"))
         return tail or url
 
-    def _register_queue_item(self, label, url, initial_label):
+    def _register_queue_item(
+        self,
+        label: str | None,
+        url: str,
+        initial_label: str | None,
+    ) -> int:
         display = label or url or "Pending chapter"
         queue_id = self._queue_item_sequence
         self._queue_item_sequence += 1
@@ -965,95 +1041,98 @@ class MangaDownloader(tk.Tk):
         progress["maximum"] = 1
         progress["value"] = 0
 
-        self.queue_items[queue_id] = {
-            "frame": item_frame,
-            "title_var": title_var,
-            "status_var": status_var,
-            "status_label": status_label,
-            "progress": progress,
-            "maximum": 1,
-            "url": url,
-            "initial_label": initial_label,
-            "state": "pending",  # pending, running, success, error, paused, cancelled
-        }
+        self.queue_items[queue_id] = QueueItem(
+            frame=item_frame,
+            title_var=title_var,
+            status_var=status_var,
+            status_label=status_label,
+            progress=progress,
+            url=url,
+            initial_label=initial_label,
+        )
 
         self._bind_mousewheel_area(item_frame, target=self.queue_canvas)
 
         self._scroll_queue_to_bottom()
         return queue_id
 
-    def _queue_update_title(self, queue_id, title):
-        def _update():
+    def _queue_update_title(self, queue_id: int, title: str) -> None:
+        def _update() -> None:
             item = self.queue_items.get(queue_id)
             if not item:
                 return
-            item["title_var"].set(title)
+            item.title_var.set(title)
 
         self.after(0, _update)
 
-    def _queue_set_status(self, queue_id, text, state=None):
-        def _update():
+    def _queue_set_status(
+        self,
+        queue_id: int,
+        text: str,
+        state: QueueState | None = None,
+    ) -> None:
+        def _update() -> None:
             item = self.queue_items.get(queue_id)
             if not item:
                 return
-            item["status_var"].set(text)
-            if state:
-                item["state"] = state
-            status_label = item["status_label"]
-            if state == "success":
-                status_label.configure(foreground="#1a7f37")
-            elif state == "error":
-                status_label.configure(foreground="#b91c1c")
-            elif state == "running":
-                status_label.configure(foreground="#1d4ed8")
-            elif state == "paused":
-                status_label.configure(foreground="#d97706")
-            elif state == "cancelled":
-                status_label.configure(foreground="#6b7280")
-            else:
-                status_label.configure(foreground="")
+            item.status_var.set(text)
+            if state is not None:
+                item.state = state
+                item.status_label.configure(foreground=STATUS_COLORS.get(state, ""))
+            elif item.state not in (QueueState.SUCCESS, QueueState.ERROR):
+                item.status_label.configure(foreground="")
 
         self.after(0, _update)
 
-    def _queue_reset_progress(self, queue_id, maximum):
+    def _queue_reset_progress(self, queue_id: int, maximum: int) -> None:
         maximum = max(1, maximum)
 
-        def _update():
+        def _update() -> None:
             item = self.queue_items.get(queue_id)
             if not item:
                 return
-            item["maximum"] = maximum
-            progress = item["progress"]
+            item.maximum = maximum
+            progress = item.progress
             progress["maximum"] = maximum
             progress["value"] = 0
 
         self.after(0, _update)
 
-    def _queue_update_progress(self, queue_id, completed, total=None):
-        def _update():
+    def _queue_update_progress(
+        self,
+        queue_id: int,
+        completed: int,
+        total: int | None = None,
+    ) -> None:
+        def _update() -> None:
             item = self.queue_items.get(queue_id)
             if not item:
                 return
             if total is not None:
                 maximum = max(1, total)
-                item["maximum"] = maximum
-                item["progress"]["maximum"] = maximum
-            maximum = item.get("maximum") or 1
+                item.maximum = maximum
+                item.progress["maximum"] = maximum
+            maximum = item.maximum or 1
             value = max(0, min(maximum, completed))
-            item["progress"]["value"] = value
+            item.progress["value"] = value
 
         self.after(0, _update)
 
-    def _queue_mark_finished(self, queue_id, success=True, message=None):
+    def _queue_mark_finished(
+        self,
+        queue_id: int,
+        success: bool = True,
+        message: str | None = None,
+    ) -> None:
         text = message or ("Completed" if success else "Failed")
-        state = "success" if success else "error"
+        state = QueueState.SUCCESS if success else QueueState.ERROR
 
-        def _update():
+        def _update() -> None:
             item = self.queue_items.get(queue_id)
             if not item:
                 return
-            maximum = item.get("maximum") or 1
-            progress = item["progress"]
+            maximum = item.maximum or 1
+            progress = item.progress
             progress["maximum"] = maximum
             if success:
                 progress["value"] = maximum
@@ -1061,27 +1140,35 @@ class MangaDownloader(tk.Tk):
         self.after(0, _update)
         self._queue_set_status(queue_id, text, state=state)
 
-    def _scroll_queue_to_bottom(self):
-        def _scroll():
+    def _scroll_queue_to_bottom(self) -> None:
+        """Ensure the queue canvas keeps the newest items in view."""
+
+        def _scroll() -> None:
             self.queue_canvas.update_idletasks()
             self.queue_canvas.yview_moveto(1.0)
 
         self.after(50, _scroll)
 
-    def _bind_mousewheel_area(self, widget, target=None):
+    def _bind_mousewheel_area(
+        self,
+        widget: tk.Misc | None,
+        target: tk.Misc | None = None,
+    ) -> None:
+        """Bind wheel events so nested widgets share the same scroll target."""
+
         if widget is None:
             return
 
         actual_target = target or widget
 
-        def _on_mousewheel(event, scroll_target=actual_target):
+        def _on_mousewheel(event: tk.Event, scroll_target: tk.Misc = actual_target):
             delta = self._normalize_mousewheel_delta(event)
             if delta == 0:
                 return "break"
             self._scroll_target(scroll_target, delta)
             return "break"
 
-        def _on_linux_wheel(event, scroll_target=actual_target):
+        def _on_linux_wheel(event: tk.Event, scroll_target: tk.Misc = actual_target):
             if event.num == 4:
                 delta = -1
             elif event.num == 5:
@@ -1098,7 +1185,9 @@ class MangaDownloader(tk.Tk):
         for child in widget.winfo_children():
             self._bind_mousewheel_area(child, target=actual_target)
 
-    def _normalize_mousewheel_delta(self, event):
+    def _normalize_mousewheel_delta(self, event: tk.Event) -> float:
+        """Normalise OS-specific wheel events into consistent unit steps."""
+
         delta = getattr(event, "delta", 0)
         platform = sys.platform
 
@@ -1116,7 +1205,9 @@ class MangaDownloader(tk.Tk):
 
         return -delta / 120
 
-    def _scroll_target(self, target, delta):
+    def _scroll_target(self, target: tk.Misc, delta: float) -> None:
+        """Scroll widgets while smoothing fractional wheel deltas."""
+
         if not hasattr(target, "yview_scroll"):
             return
 
@@ -1138,11 +1229,12 @@ class MangaDownloader(tk.Tk):
 
 
 
-    def _clear_finished_queue_items(self):
+    def _clear_finished_queue_items(self) -> None:
+        removable_states = {QueueState.SUCCESS, QueueState.ERROR, QueueState.CANCELLED}
         ids_to_remove = [
             qid
             for qid, item in self.queue_items.items()
-            if item.get("state") in ("success", "error", "cancelled")
+            if item.state in removable_states
         ]
         if not ids_to_remove:
             self._set_status("Status: No finished items to clear.")
@@ -1150,31 +1242,37 @@ class MangaDownloader(tk.Tk):
 
         for qid in ids_to_remove:
             item = self.queue_items.pop(qid, None)
-            if item and item.get("frame"):
-                item["frame"].destroy()
+            if item:
+                item.frame.destroy()
 
         self._set_status(f"Status: Cleared {len(ids_to_remove)} finished item(s) from the queue.")
 
-    def _download_chapter_worker(self, queue_id, url, initial_label):
+    def _download_chapter_worker(
+        self,
+        queue_id: int,
+        url: str,
+        initial_label: str | None,
+    ) -> None:
         display_label = initial_label or url
         self._on_download_start(display_label, queue_id)
         scraper = cloudscraper.create_scraper()
         chapter_display = display_label
         try:
-            self._queue_set_status(queue_id, "Fetching chapter page…", state="running")
+            self._queue_set_status(queue_id, "Fetching chapter page…", state=QueueState.RUNNING)
             self._set_status(f"Status: Fetching {display_label}...")
             response = scraper.get(url)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
 
-            parsed_data = None
+            parsed_data: ParsedChapter | None = None
             for parser in ALL_PARSERS:
                 parser_name = parser.get_name()
-                self._queue_set_status(queue_id, f"Parsing with {parser_name}…", state="running")
+                self._queue_set_status(queue_id, f"Parsing with {parser_name}…", state=QueueState.RUNNING)
                 self._set_status(f"Status: {display_label} • trying parser {parser_name}...")
                 if parser.can_parse(soup, url):
-                    parsed_data = parser.parse(soup, url)
-                    if parsed_data:
+                    parsed_result = parser.parse(soup, url)
+                    if parsed_result:
+                        parsed_data = cast(ParsedChapter, parsed_result)
                         break
 
             if not parsed_data:
@@ -1186,7 +1284,7 @@ class MangaDownloader(tk.Tk):
             chapter = parsed_data["chapter"]
             chapter_display = f"{title} — {chapter}"
             self._queue_update_title(queue_id, chapter_display)
-            self._queue_set_status(queue_id, "Preparing download…", state="running")
+            self._queue_set_status(queue_id, "Preparing download…", state=QueueState.RUNNING)
 
             image_urls = parsed_data["image_urls"]
 
@@ -1211,7 +1309,7 @@ class MangaDownloader(tk.Tk):
                 self._set_status(f"Status: Failed to download images for {chapter_display}.")
                 return
 
-            self._queue_set_status(queue_id, "Converting to PDF…", state="running")
+            self._queue_set_status(queue_id, "Converting to PDF…", state=QueueState.RUNNING)
             pdf_created = self._create_pdf(download_dir, title, chapter, chapter_display)
             if not pdf_created:
                 self._queue_mark_finished(queue_id, success=False, message="No images available for PDF.")
@@ -1228,15 +1326,24 @@ class MangaDownloader(tk.Tk):
         except requests.RequestException as exc:
             self._queue_mark_finished(queue_id, success=False, message=f"Network error: {exc}")
             self._set_status(f"Status: Error - Failed to fetch {display_label}: {exc}")
+            logger.exception("Network error while downloading %s", display_label)
             raise
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - we want to surface unexpected failures
             self._queue_mark_finished(queue_id, success=False, message=f"Error: {exc}")
             self._set_status(f"Status: Error - Download failed for {chapter_display}: {exc}")
+            logger.exception("Unhandled error while processing %s", chapter_display)
             raise
         finally:
             self._on_download_end(display_label, queue_id)
 
-    def _download_images_concurrently(self, scraper, image_urls, download_dir, chapter_display, queue_id):
+    def _download_images_concurrently(
+        self,
+        scraper: cloudscraper.CloudScraper,
+        image_urls: Sequence[str],
+        download_dir: str,
+        chapter_display: str,
+        queue_id: int,
+    ) -> list[str]:
         total_images = len(image_urls)
         if total_images == 0:
             self._queue_mark_finished(queue_id, success=False, message="No images found.")
@@ -1245,24 +1352,28 @@ class MangaDownloader(tk.Tk):
 
         workers = self._clamp_value(self._image_workers_value or 4, 1, 32, 4)
         self._queue_reset_progress(queue_id, total_images)
-        self._queue_set_status(queue_id, f"Downloading images (0/{total_images})…", state="running")
+        self._queue_set_status(
+            queue_id,
+            f"Downloading images (0/{total_images})…",
+            state=QueueState.RUNNING,
+        )
         self._set_status(f"Status: {chapter_display} • Downloading images...")
 
-        failed = []
+        failed: list[str] = []
         progress_lock = threading.Lock()
         completed = 0
 
-        def fetch_image(index, img_url):
+        def fetch_image(index: int, img_url: str) -> tuple[int, bool, str | None]:
             try:
                 img_response = scraper.get(img_url, timeout=30)
                 img_response.raise_for_status()
                 file_ext = self._determine_file_extension(img_url, img_response)
                 file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
-                with open(file_path, "wb") as f:
-                    f.write(img_response.content)
+                with open(file_path, "wb") as file_handler:
+                    file_handler.write(img_response.content)
                 return index, True, None
             except Exception as exc:  # noqa: BLE001
-                print(f"Failed to download {img_url}: {exc}")
+                logger.warning("Failed to download %s: %s", img_url, exc)
                 return index, False, img_url
 
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download") as executor:
@@ -1270,7 +1381,7 @@ class MangaDownloader(tk.Tk):
                 executor.submit(fetch_image, index, img_url) for index, img_url in enumerate(image_urls)
             ]
             for future in as_completed(futures):
-                index, success, error_url = future.result()
+                _index, success, error_url = future.result()
                 with progress_lock:
                     completed += 1
                     current_completed = completed
@@ -1278,7 +1389,7 @@ class MangaDownloader(tk.Tk):
                 self._queue_set_status(
                     queue_id,
                     f"Downloading images ({current_completed}/{total_images})…",
-                    state="running",
+                    state=QueueState.RUNNING,
                 )
                 self._set_status(
                     f"Status: {chapter_display} • {current_completed}/{total_images} image(s) downloaded"
@@ -1290,14 +1401,14 @@ class MangaDownloader(tk.Tk):
             self._queue_set_status(
                 queue_id,
                 f"Images downloaded with {len(failed)} failure(s).",
-                state="running",
+                state=QueueState.RUNNING,
             )
         else:
-            self._queue_set_status(queue_id, "Images downloaded.", state="running")
+            self._queue_set_status(queue_id, "Images downloaded.", state=QueueState.RUNNING)
 
         return failed
 
-    def _determine_file_extension(self, img_url, response):
+    def _determine_file_extension(self, img_url: str, response: requests.Response) -> str:
         parsed_url = urlparse(img_url)
         _, file_ext = os.path.splitext(os.path.basename(parsed_url.path))
         if not file_ext:
@@ -1306,7 +1417,13 @@ class MangaDownloader(tk.Tk):
             file_ext = f".{ext_match.group(1)}" if ext_match else ".jpg"
         return file_ext
 
-    def _create_pdf(self, download_dir, title, chapter, chapter_display):
+    def _create_pdf(
+        self,
+        download_dir: str,
+        title: str,
+        chapter: str,
+        chapter_display: str,
+    ) -> bool:
         supported_formats = ("png", "jpg", "jpeg", "gif", "bmp", "webp")
         image_files = sorted(
             [
@@ -1321,7 +1438,7 @@ class MangaDownloader(tk.Tk):
             return False
 
         pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
-        images = []
+        images: list[Image.Image] = []
         try:
             for path in image_files:
                 images.append(Image.open(path).convert("RGB"))
@@ -1341,7 +1458,7 @@ class MangaDownloader(tk.Tk):
                 image.close()
         return False
 
-    def _on_download_task_done(self, queue_id, future):
+    def _on_download_task_done(self, queue_id: int, future: Future[None]) -> None:
         self._chapter_futures.pop(queue_id, None)
 
         if queue_id in self._paused_queue_ids:
@@ -1358,8 +1475,8 @@ class MangaDownloader(tk.Tk):
             return
         except Exception as exc:  # noqa: BLE001
             message = str(exc)
-            self._queue_set_status(queue_id, f"Failed: {message}", state="error")
-            print(f"Download task failed: {exc}")
+            self._queue_set_status(queue_id, f"Failed: {message}", state=QueueState.ERROR)
+            logger.exception("Queue item %s failed", queue_id)
 
     def on_close(self):
         with self.chapter_executor_lock:
@@ -1368,6 +1485,12 @@ class MangaDownloader(tk.Tk):
                 self.chapter_executor = None
         self.destroy()
 
-if __name__ == "__main__":
+def main() -> None:
+    """Entrypoint to launch the GUI application."""
+
     app = MangaDownloader()
     app.mainloop()
+
+
+if __name__ == "__main__":
+    main()

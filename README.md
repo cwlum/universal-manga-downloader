@@ -1,6 +1,6 @@
-# Universal Manga Downloader (v1.0.1)
+# Universal Manga Downloader (v1.0.2)
 
-![Version](https://img.shields.io/badge/version-1.0.1-orange)
+![Version](https://img.shields.io/badge/version-1.0.2-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--10-informational)
 
@@ -81,6 +81,8 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 ---
 
 ## For Developers: How to Add a New Parser
+
+See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes.
 
 This tool's strength is its modularity. To support a new website, you don't need to touch the main application.
 

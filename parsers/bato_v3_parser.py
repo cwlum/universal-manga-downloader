@@ -1,13 +1,15 @@
-import json
-import os
-import re
-import sys
+"""Parser for the Qwik-based Bato pages embedding data in qwik/json payloads."""
 
-try:
-    from .base_parser import BaseParser
-except ImportError:  # Allow running the module directly for debugging
-    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-    from base_parser import BaseParser
+from __future__ import annotations
+
+import json
+import logging
+import re
+from typing import Any
+
+from .base_parser import BaseParser
+
+logger = logging.getLogger(__name__)
 
 
 class BatoV3Parser(BaseParser):
@@ -19,16 +21,16 @@ class BatoV3Parser(BaseParser):
     _TOKEN_PATTERN = re.compile(r"^[0-9a-z]+$")
 
     @staticmethod
-    def get_name():
+    def get_name() -> str:
         return "Bato_V3"
 
     @staticmethod
-    def can_parse(soup, url):
+    def can_parse(soup, url: str) -> bool:
         """Check for the presence of the qwik/json script tag."""
         return soup.find('script', {'type': 'qwik/json'}) is not None
 
     @staticmethod
-    def _resolve(value, objs, cache):
+    def _resolve(value: Any, objs: list[Any], cache: dict[str, Any]) -> Any:
         """Resolve Qwik token references into concrete Python values."""
         if isinstance(value, str):
             cached = cache.get(value)
@@ -63,7 +65,7 @@ class BatoV3Parser(BaseParser):
         return value
 
     @staticmethod
-    def parse(soup, url):
+    def parse(soup, url: str) -> dict[str, object] | None:
         """Extracts data from the qwik/json script tag."""
         try:
             script_tag = soup.find('script', {'type': 'qwik/json'})
@@ -75,7 +77,7 @@ class BatoV3Parser(BaseParser):
             if not isinstance(objs, list):
                 return None
 
-            cache = {}
+            cache: dict[str, Any] = {}
             chapter_state = next(
                 (
                     obj for obj in objs
@@ -114,6 +116,6 @@ class BatoV3Parser(BaseParser):
                 'chapter': BatoV3Parser.sanitize_filename(chapter),
                 'image_urls': image_urls,
             }
-        except (AttributeError, json.JSONDecodeError, IndexError, KeyError) as e:
-            print(f"[{BatoV3Parser.get_name()}] Parsing failed: {e}")
+        except (AttributeError, json.JSONDecodeError, IndexError, KeyError, TypeError):
+            logger.exception("%s parsing failed", BatoV3Parser.get_name())
             return None

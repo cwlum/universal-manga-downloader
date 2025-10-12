@@ -1,6 +1,14 @@
-import re
+"""Parser for Bato.to deployments embedding image URLs in script variables."""
+
+from __future__ import annotations
+
 import json
+import logging
+import re
+
 from .base_parser import BaseParser
+
+logger = logging.getLogger(__name__)
 
 class BatoV2Parser(BaseParser):
     """
@@ -9,16 +17,16 @@ class BatoV2Parser(BaseParser):
     """
 
     @staticmethod
-    def get_name():
+    def get_name() -> str:
         return "Bato_V2"
 
     @staticmethod
-    def can_parse(soup, url):
+    def can_parse(soup, url: str) -> bool:
         """Check for the presence of the 'imgHttps' script variable."""
         return soup.find('script', string=re.compile(r'const imgHttps =')) is not None
 
     @staticmethod
-    def parse(soup, url):
+    def parse(soup, url: str) -> dict[str, object] | None:
         """Extracts data from the script tag."""
         try:
             # --- Title and Chapter ---
@@ -41,12 +49,12 @@ class BatoV2Parser(BaseParser):
             script_tag = soup.find('script', string=re.compile(r'const imgHttps ='))
             script_content = script_tag.string
             match = re.search(r'const imgHttps = (\[.*?\]);', script_content)
-            
+
             if not match:
                 return None
 
             json_str = match.group(1)
-            image_urls = json.loads(json_str)
+            image_urls: list[str] = json.loads(json_str)
 
             if not image_urls:
                 return None
@@ -56,6 +64,6 @@ class BatoV2Parser(BaseParser):
                 'chapter': chapter,
                 'image_urls': image_urls
             }
-        except (AttributeError, json.JSONDecodeError, IndexError) as e:
-            print(f"[{BatoV2Parser.get_name()}] Parsing failed: {e}")
+        except (AttributeError, json.JSONDecodeError, IndexError, KeyError):
+            logger.exception("%s parsing failed", BatoV2Parser.get_name())
             return None

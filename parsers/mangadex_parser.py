@@ -1,6 +1,15 @@
+"""Parser that leverages the MangaDex API for chapter downloads."""
+
+from __future__ import annotations
+
+import logging
 import re
-import requests
+
+import requests  # type: ignore[import-untyped]
+
 from .base_parser import BaseParser
+
+logger = logging.getLogger(__name__)
 
 class MangaDexParser(BaseParser):
     """
@@ -9,16 +18,16 @@ class MangaDexParser(BaseParser):
     """
 
     @staticmethod
-    def get_name():
+    def get_name() -> str:
         return "MangaDex"
 
     @staticmethod
-    def can_parse(soup, url):
+    def can_parse(soup, url: str) -> bool:
         """Check if the URL is a MangaDex chapter URL."""
         return "mangadex.org/chapter/" in url
 
     @staticmethod
-    def parse(soup, url):
+    def parse(soup, url: str) -> dict[str, object] | None:
         """
         Parses the page to extract manga information using the MangaDex API.
         """
@@ -60,10 +69,10 @@ class MangaDexParser(BaseParser):
 
             base_url = server_data.get('baseUrl')
             chapter_hash = server_data.get('chapter', {}).get('hash')
-            image_files = server_data.get('chapter', {}).get('data', []) # Use 'data' for original quality
+            image_files: list[str] = server_data.get('chapter', {}).get('data', [])  # Use 'data' for original quality
 
             if not all([base_url, chapter_hash, image_files]):
-                print(f"[{MangaDexParser.get_name()}] Missing critical image server data.")
+                logger.warning("%s missing critical image server data", MangaDexParser.get_name())
                 return None
 
             image_urls = [f"{base_url}/data/{chapter_hash}/{filename}" for filename in image_files]
@@ -74,9 +83,9 @@ class MangaDexParser(BaseParser):
                 'image_urls': image_urls
             }
 
-        except requests.RequestException as e:
-            print(f"[{MangaDexParser.get_name()}] API request failed: {e}")
+        except requests.RequestException:
+            logger.exception("%s API request failed", MangaDexParser.get_name())
             return None
-        except (KeyError, IndexError, TypeError, ValueError) as e:
-            print(f"[{MangaDexParser.get_name()}] Failed to parse API response: {e}")
+        except (KeyError, IndexError, TypeError, ValueError):
+            logger.exception("%s failed to parse API response", MangaDexParser.get_name())
             return None

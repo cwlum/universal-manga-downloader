@@ -1,4 +1,9 @@
+"""Base interface that all parser implementations must follow."""
+
+from __future__ import annotations
+
 import re
+
 
 class BaseParser:
     """
@@ -8,14 +13,14 @@ class BaseParser:
     """
 
     @staticmethod
-    def get_name():
+    def get_name() -> str:
         """
         Returns the name of the parser (e.g., 'Bato_V1').
         """
         raise NotImplementedError
 
     @staticmethod
-    def can_parse(soup, url):
+    def can_parse(soup, url: str) -> bool:
         """
         A quick check to see if this parser is likely to handle the page.
         This should be a lightweight check.
@@ -27,7 +32,7 @@ class BaseParser:
         raise NotImplementedError
 
     @staticmethod
-    def parse(soup, url):
+    def parse(soup, url: str) -> dict[str, object] | None:
         """
         Parses the page to extract manga information.
 
@@ -39,8 +44,10 @@ class BaseParser:
         raise NotImplementedError
 
     @staticmethod
-    def sanitize_filename(name):
+    def sanitize_filename(name: str) -> str:
         """
         A utility function to remove illegal characters from filenames.
         """
-        return re.sub(r'[^a-zA-Z0-9_.-]', '_', name)
+        sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '_', name)
+        sanitized = re.sub(r'_{3,}', '__', sanitized)
+        return sanitized.strip('_')

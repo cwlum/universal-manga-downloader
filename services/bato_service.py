@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
 from urllib.parse import urljoin
 
 import cloudscraper
 from bs4 import BeautifulSoup
-
 
 logger = logging.getLogger(__name__)
 
@@ -17,18 +15,18 @@ class BatoService:
     BASE_URL = "https://bato.to"
     SEARCH_PATH = "/search"
 
-    def __init__(self, scraper: Optional[cloudscraper.CloudScraper] = None) -> None:
+    def __init__(self, scraper: cloudscraper.CloudScraper | None = None) -> None:
         # Reuse the downloader's scraper if available to play nicely with Cloudflare.
         self._scraper = scraper or cloudscraper.create_scraper()
 
-    def search_manga(self, query: str, max_pages: int = 3) -> List[Dict[str, str]]:
+    def search_manga(self, query: str, max_pages: int = 3) -> list[dict[str, str]]:
         """Return a list of search results for the supplied query."""
         normalized_query = query.strip()
         if not normalized_query:
             return []
 
-        results: List[Dict[str, str]] = []
-        seen_urls = set()
+        results: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
 
         for page in range(1, max(1, max_pages) + 1):
             params = {"word": normalized_query, "page": page}
@@ -44,10 +42,14 @@ class BatoService:
 
             for item in soup.select("div.item-text"):
                 link = item.select_one("a.item-title")
-                if not link or not link.get("href"):
+                if not link:
                     continue
 
-                series_url = urljoin(self.BASE_URL, link["href"])
+                href = link.get("href")
+                if not isinstance(href, str):
+                    continue
+
+                series_url = urljoin(self.BASE_URL, href)
                 if series_url in seen_urls:
                     continue
 
@@ -69,7 +71,7 @@ class BatoService:
 
         return results
 
-    def get_series_info(self, series_url: str) -> Dict[str, object]:
+    def get_series_info(self, series_url: str) -> dict[str, object]:
         """Fetch title, metadata, and chapter listing for a series page."""
         response = self._scraper.get(series_url, timeout=20)
         response.raise_for_status()
@@ -98,8 +100,8 @@ class BatoService:
 
         return description_container.get_text(" ", strip=True)
 
-    def _extract_attributes(self, soup: BeautifulSoup) -> Dict[str, object]:
-        attributes: Dict[str, object] = {}
+    def _extract_attributes(self, soup: BeautifulSoup) -> dict[str, object]:
+        attributes: dict[str, object] = {}
 
         for attr_item in soup.select("div.attr-item"):
             label_tag = attr_item.select_one("b.text-muted")
@@ -109,7 +111,7 @@ class BatoService:
 
             label = label_tag.get_text(strip=True).rstrip(":")
 
-            collected: List[str] = []
+            collected: list[str] = []
             for child in value_container.find_all(["a", "u", "span"], recursive=True):
                 text = child.get_text(strip=True)
                 if text:
@@ -127,12 +129,12 @@ class BatoService:
 
         return attributes
 
-    def _extract_chapters(self, soup: BeautifulSoup) -> List[Dict[str, str]]:
-        chapters: List[Dict[str, str]] = []
+    def _extract_chapters(self, soup: BeautifulSoup) -> list[dict[str, str]]:
+        chapters: list[dict[str, str]] = []
 
         for anchor in soup.select("a.chapt"):
             href = anchor.get("href")
-            if not href:
+            if not isinstance(href, str):
                 continue
 
             base_title_tag = anchor.select_one("b")
@@ -155,4 +157,3 @@ class BatoService:
 
         chapters.reverse()  # Oldest first keeps numbering increasing in the UI.
         return chapters
-
