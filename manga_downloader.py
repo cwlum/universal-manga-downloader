@@ -8,21 +8,23 @@ import re
 import sys
 import threading
 import tkinter as tk
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import Enum
+from numbers import Real
+from pathlib import Path
+from functools import partial
 from tkinter import filedialog, ttk
-from typing import TypedDict, cast
+from typing import TypedDict
 from urllib.parse import urlparse
 
 import cloudscraper
 import requests  # type: ignore[import-untyped]
 import sv_ttk
 from bs4 import BeautifulSoup
-from PIL import Image
 
-from parsers import ALL_PARSERS
+from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, PluginType
 from services import BatoService
 
 
@@ -77,14 +79,6 @@ class SeriesChapter(TypedDict, total=False):
     label: str
 
 
-class ParsedChapter(TypedDict):
-    """Structured data returned by individual parser implementations."""
-
-    title: str
-    chapter: str
-    image_urls: list[str]
-
-
 def configure_logging() -> None:
     """Configure a sensible default logger for the application."""
 
@@ -109,6 +103,8 @@ class MangaDownloader(tk.Tk):
         sv_ttk.set_theme("dark")
 
         self.bato_service = BatoService()
+        self.plugin_manager = PluginManager()
+        self.plugin_manager.load_plugins()
         self.search_results: list[SearchResult] = []
         self.series_data: dict[str, object] | None = None
         self.series_chapters: list[SeriesChapter] = []
@@ -143,6 +139,7 @@ class MangaDownloader(tk.Tk):
         self._downloads_paused = False
         self.pause_button: ttk.Button | None = None
         self.cancel_pending_button: ttk.Button | None = None
+        self.plugin_vars: dict[tuple[PluginType, str], tk.BooleanVar] = {}
 
         self._build_ui()
         self._bind_mousewheel_area(self.search_results_listbox)
@@ -388,10 +385,60 @@ class MangaDownloader(tk.Tk):
         self.image_workers_spinbox.pack(side="left", padx=(6, 0))
         self.image_workers_spinbox.bind("<FocusOut>", self._on_image_workers_change)
 
+        self._build_plugin_settings()
+
         status_bar = ttk.Frame(self)
         status_bar.pack(fill="x", side="bottom", pady=(10, 0))
         self.status_label = ttk.Label(status_bar, text="Status: Ready")
         self.status_label.pack(anchor="w", padx=4, pady=(0, 4))
+
+    def _build_plugin_settings(self) -> None:
+        """Render plugin toggle controls within the settings tab."""
+
+        plugin_records = self.plugin_manager.get_records()
+        if not plugin_records:
+            return
+
+        container = ttk.LabelFrame(self.settings_tab, text="Plugins")
+        container.pack(fill="both", expand=True, padx=10, pady=(0, 12))
+
+        ttk.Label(
+            container,
+            text="Enable or disable plugins for this session. Changes apply immediately.",
+            wraplength=420,
+            justify="left",
+        ).pack(anchor="w", padx=10, pady=(8, 6))
+
+        for plugin_type in PluginType:
+            records = self.plugin_manager.get_records(plugin_type)
+            if not records:
+                continue
+
+            section = ttk.LabelFrame(container, text=f"{plugin_type.value.title()} Plugins")
+            section.pack(fill="x", expand=False, padx=10, pady=(0, 10))
+
+            for record in records:
+                name = record.name
+                var = tk.BooleanVar(value=record.enabled)
+                self.plugin_vars[(plugin_type, name)] = var
+                ttk.Checkbutton(
+                    section,
+                    text=name,
+                    variable=var,
+                    command=partial(self._on_plugin_toggle, plugin_type, name),
+                ).pack(anchor="w", padx=8, pady=2)
+
+    def _on_plugin_toggle(self, plugin_type: PluginType, plugin_name: str) -> None:
+        """Respond to plugin enable/disable events from the UI."""
+
+        var = self.plugin_vars.get((plugin_type, plugin_name))
+        if var is None:
+            return
+
+        enabled = bool(var.get())
+        self.plugin_manager.set_enabled(plugin_type, plugin_name, enabled)
+        status = "enabled" if enabled else "disabled"
+        self._set_status(f"Status: Plugin {plugin_name} {status}.")
 
     # --- Search Handlers ---
     def start_search_thread(self):
@@ -503,7 +550,7 @@ class MangaDownloader(tk.Tk):
 
         attributes = data.get("attributes") or {}
         for label, value in attributes.items():
-            if isinstance(value, (list, tuple, set)):
+            if isinstance(value, Iterable) and not isinstance(value, str | bytes | dict):
                 value_text = ", ".join(str(item) for item in value)
             else:
                 value_text = str(value)
@@ -962,7 +1009,7 @@ class MangaDownloader(tk.Tk):
     ) -> int:
         int_value = default
         try:
-            if isinstance(value, (int, float)):
+            if isinstance(value, Real) and not isinstance(value, bool):
                 int_value = int(value)
             elif isinstance(value, str) and value.strip():
                 int_value = int(value)
@@ -1264,16 +1311,23 @@ class MangaDownloader(tk.Tk):
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
 
+            parser_plugins = list(self.plugin_manager.iter_enabled_parsers())
+            if not parser_plugins:
+                self._queue_mark_finished(queue_id, success=False, message="No parser plugins enabled.")
+                self._set_status("Status: Error - No parser plugins enabled.")
+                return
+
             parsed_data: ParsedChapter | None = None
-            for parser in ALL_PARSERS:
+            for parser in parser_plugins:
                 parser_name = parser.get_name()
                 self._queue_set_status(queue_id, f"Parsing with {parser_name}…", state=QueueState.RUNNING)
                 self._set_status(f"Status: {display_label} • trying parser {parser_name}...")
-                if parser.can_parse(soup, url):
-                    parsed_result = parser.parse(soup, url)
-                    if parsed_result:
-                        parsed_data = cast(ParsedChapter, parsed_result)
-                        break
+                if not parser.can_handle(url):
+                    continue
+                parsed_result = parser.parse(soup, url)
+                if parsed_result:
+                    parsed_data = parsed_result
+                    break
 
             if not parsed_data:
                 self._queue_mark_finished(queue_id, success=False, message="No suitable parser found.")
@@ -1309,10 +1363,10 @@ class MangaDownloader(tk.Tk):
                 self._set_status(f"Status: Failed to download images for {chapter_display}.")
                 return
 
-            self._queue_set_status(queue_id, "Converting to PDF…", state=QueueState.RUNNING)
-            pdf_created = self._create_pdf(download_dir, title, chapter, chapter_display)
-            if not pdf_created:
-                self._queue_mark_finished(queue_id, success=False, message="No images available for PDF.")
+            metadata: ChapterMetadata = {"title": title, "chapter": chapter, "source_url": url}
+            conversions_ok = self._run_converters(download_dir, metadata, chapter_display, queue_id)
+            if not conversions_ok:
+                self._queue_mark_finished(queue_id, success=False, message="Conversion failed.")
                 return
 
             if failed_downloads:
@@ -1417,46 +1471,79 @@ class MangaDownloader(tk.Tk):
             file_ext = f".{ext_match.group(1)}" if ext_match else ".jpg"
         return file_ext
 
-    def _create_pdf(
-        self,
-        download_dir: str,
-        title: str,
-        chapter: str,
-        chapter_display: str,
-    ) -> bool:
-        supported_formats = ("png", "jpg", "jpeg", "gif", "bmp", "webp")
-        image_files = sorted(
-            [
-                os.path.join(download_dir, f)
-                for f in os.listdir(download_dir)
-                if f.lower().endswith(supported_formats)
-            ]
+    def _collect_image_files(self, download_dir: str) -> list[Path]:
+        supported = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+        directory = Path(download_dir)
+        if not directory.exists():
+            return []
+        return sorted(
+            path
+            for path in directory.iterdir()
+            if path.is_file() and path.suffix.lower() in supported
         )
 
+    def _run_converters(
+        self,
+        download_dir: str,
+        metadata: ChapterMetadata,
+        chapter_display: str,
+        queue_id: int,
+    ) -> bool:
+        image_files = self._collect_image_files(download_dir)
         if not image_files:
-            self._set_status(f"Status: {chapter_display} • No images found to create PDF.")
+            self._set_status(f"Status: {chapter_display} • No images available for conversion.")
             return False
 
-        pdf_path = os.path.join(download_dir, f"{title}_{chapter}.pdf")
-        images: list[Image.Image] = []
-        try:
-            for path in image_files:
-                images.append(Image.open(path).convert("RGB"))
-            if images:
-                primary, *rest = images
-                primary.save(
-                    pdf_path,
-                    "PDF",
-                    resolution=100.0,
-                    save_all=True,
-                    append_images=rest,
+        converters = list(self.plugin_manager.iter_enabled_converters())
+        if not converters:
+            self._queue_set_status(
+                queue_id,
+                "Images downloaded (no converters enabled).",
+                state=QueueState.RUNNING,
+            )
+            self._set_status(f"Status: {chapter_display} • Skipped conversion (no converters enabled).")
+            return True
+
+        success = False
+        output_dir = Path(download_dir)
+        for converter in converters:
+            converter_name = converter.get_name()
+            self._queue_set_status(
+                queue_id,
+                f"Converting with {converter_name}…",
+                state=QueueState.RUNNING,
+            )
+            self._set_status(f"Status: {chapter_display} • Converting with {converter_name}...")
+            try:
+                result_path = converter.convert(image_files, output_dir, metadata)
+            except Exception as exc:  # noqa: BLE001 - plugin failure should be visible
+                logger.exception("Converter %s failed", converter_name)
+                self._queue_set_status(
+                    queue_id,
+                    f"{converter_name} failed: {exc}",
+                    state=QueueState.RUNNING,
                 )
-                self._set_status(f"Status: {chapter_display} • PDF saved to {pdf_path}")
-                return True
-        finally:
-            for image in images:
-                image.close()
-        return False
+                continue
+
+            if result_path is None:
+                self._queue_set_status(
+                    queue_id,
+                    f"{converter_name} produced no output.",
+                    state=QueueState.RUNNING,
+                )
+                continue
+
+            success = True
+            self._queue_set_status(
+                queue_id,
+                f"{converter_name} created {result_path.name}",
+                state=QueueState.RUNNING,
+            )
+            self._set_status(
+                f"Status: {chapter_display} • {converter_name} created {result_path.name}"
+            )
+
+        return success
 
     def _on_download_task_done(self, queue_id: int, future: Future[None]) -> None:
         self._chapter_futures.pop(queue_id, None)
@@ -1483,6 +1570,7 @@ class MangaDownloader(tk.Tk):
             if self.chapter_executor is not None:
                 self.chapter_executor.shutdown(wait=False)
                 self.chapter_executor = None
+        self.plugin_manager.shutdown()
         self.destroy()
 
 def main() -> None:

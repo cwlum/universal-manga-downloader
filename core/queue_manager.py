@@ -49,7 +49,7 @@ class QueueManager:
     """Thread-safe manager for download queue state."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._pending_downloads = 0
         self._active_downloads = 0
         self._total_downloads = 0

@@ -18,17 +18,18 @@
 bato-downloader/
 ├── config.py              # Application configuration and constants
 ├── manga_downloader.py    # Main GUI application
+├── plugins/               # Parser and converter plugins
+│   ├── base.py            # Base classes + plugin manager
+│   ├── bato_parser.py     # Example parser plugin
+│   ├── pdf_converter.py   # Example converter plugin
+│   └── cbz_converter.py   # Example converter plugin
 ├── core/                  # Core business logic
-│   ├── pdf_converter.py   # PDF generation utilities
 │   └── queue_manager.py   # Thread-safe queue state management
 ├── services/              # External service integrations
 │   └── bato_service.py    # Bato.to search and scraping
-├── parsers/               # Website-specific parsers
-│   ├── base_parser.py     # Parser base class
-│   └── ...                # Specific parser implementations
 └── tests/                 # Unit tests
     ├── test_core/         # Tests for core modules
-    ├── test_parsers/      # Tests for parsers
+    ├── test_plugins/      # Tests for plugin infrastructure
     └── test_services/     # Tests for services
 ```
 
@@ -54,7 +55,7 @@ pytest tests/test_core/test_queue_manager.py
 
 Run with coverage:
 ```bash
-pytest --cov=core --cov=parsers --cov=services
+pytest --cov=core --cov=plugins --cov=services
 ```
 
 ## Running the App
@@ -69,12 +70,21 @@ The application will open a Tkinter window and reuse the configured download dir
 
 ## Adding New Features
 
-### Adding a New Parser
+### Adding a Parser Plugin
 
-1. Create a new file in `parsers/` (e.g., `mysite_parser.py`)
-2. Inherit from `BaseParser`
-3. Implement required methods: `get_name()`, `can_parse()`, `parse()`
-4. The parser will be automatically discovered
+1. Create a new file in `plugins/` (e.g., `mysite.py`)
+2. Subclass `BasePlugin` from `plugins.base`
+3. Implement `get_name()`, `can_handle(url)`, and `parse(soup, url)`
+4. Optional: override `on_load()` / `on_unload()` for setup or cleanup
+5. The plugin loader will automatically discover and register it at startup
+
+### Adding a Converter Plugin
+
+1. Create a file in `plugins/` (e.g., `epub_converter.py`)
+2. Subclass `BaseConverter`
+3. Implement `get_name()`, `get_output_extension()`, and `convert(image_files, output_dir, metadata)`
+4. Use `ChapterMetadata` from `plugins.base` for consistent naming
+5. Make sure the plugin complies with the non-commercial license requirements
 
 ### Adding Configuration
 
