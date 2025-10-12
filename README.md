@@ -1,12 +1,12 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.2.0-orange)
+![Version](https://img.shields.io/badge/version-1.2.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--12-informational)
 
-An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into a single PDF file.
+An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into rich digital archives.
 
-This tool is built on a **modular parser engine**, making it adaptable to future website changes and expandable to support new sites.
+This tool is built on a **modular plugin engine**, making it adaptable to future website changes and expandable to support new sites or output formats without touching the core codebase.
 
 ---
 
@@ -33,7 +33,7 @@ The download directory, chapter workers, and image workers live together under t
 
 ## Key Features
 
--   ✅ **Modular Parser Engine**: Intelligently cycles through available parsers to find one that works for the given URL. Highly extensible for future websites.
+-   ✅ **Plugin System**: Automatically discovers parser and converter plugins, so contributors can add new sites or formats by dropping a file into the `plugins/` directory.
 -   ✅ **Zero-Setup Installation**: Automatically installs all required libraries on first run.
 -   ✅ **Tabbed UI**: Navigate between `Browser`, `Downloads`, and `Settings` tabs to keep searching, monitoring, and configuring separate and tidy.
 -   ✅ **Batch Queue & Range Control**: Queue entire series, highlight ranges with one click, press `Ctrl+A` to select everything, or fine-tune chapter spans via the new range helpers.
@@ -41,7 +41,7 @@ The download directory, chapter workers, and image workers live together under t
 -   ✅ **Multi-Threaded Downloads**: Adjust chapter and image worker counts to shorten download times on fast connections.
 -   ✅ **Custom Download Folder**: Save chapters anywhere—no more being locked to your system Downloads directory.
 -   ✅ **Bato.to Search & Chapter Explorer**: Search the catalog, review series info, and select chapters to pre-fill the downloader with a single click.
--   ✅ **One-Click PDF Conversion**: Instantly merges all downloaded images into a single, high-quality PDF.
+-   ✅ **Plugin Output Formats**: Ships with PDF and CBZ converters and makes it trivial to ship your own (EPUB, plain images, etc.).
 -   ✅ **Smart Folder Organization**: Creates folders named after the manga title and chapter.
 -   ✅ **Advanced Web Scraping**: Uses `cloudscraper` to bypass anti-bot protections like Cloudflare.
 -   ✅ **Cross-Platform Support**: Works flawlessly on Windows, macOS, and Linux.
@@ -80,18 +80,38 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 ---
 
-## For Developers: How to Add a New Parser
+## For Developers: Extend with Plugins
 
 See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes.
 
-This tool's strength is its modularity. To support a new website, you don't need to touch the main application.
+Universal Manga Downloader 1.2.1 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
 
-1.  **Create a new parser file** in the `/parsers` directory (e.g., `my_site_parser.py`).
-2.  **Create a parser class** that inherits from `BaseParser`.
-3.  **Implement the `can_parse` and `parse` methods**:
-    -   `can_parse(soup, url)`: A quick check to see if your parser can handle the page (e.g., check for a unique HTML tag or URL pattern).
-    -   `parse(soup, url)`: The core logic to extract the `title`, `chapter`, and a list of `image_urls`. It should return a dictionary with these keys.
-4.  **Done!** The main script will automatically detect and use your new parser.
+### Adding a Parser Plugin
+
+1.  Create a new file inside `plugins/` (for example, `my_site.py`).
+2.  Subclass `BasePlugin` from `plugins.base`.
+3.  Implement the required methods:
+    -   `get_name(self) -> str`
+    -   `can_handle(self, url: str) -> bool`
+    -   `parse(self, soup: BeautifulSoup, url: str) -> ParsedChapter | None`
+4.  (Optional) Override `on_load`/`on_unload` for setup or cleanup work.
+5.  Save the file—no manual registration needed. The manager loads every plugin at startup.
+
+### Adding a Converter Plugin
+
+1.  Create a file in `plugins/` (for example, `epub_converter.py`).
+2.  Subclass `BaseConverter` and implement:
+    -   `get_name(self) -> str`
+    -   `get_output_extension(self) -> str`
+    -   `convert(self, image_files, output_dir, metadata)` returning the created file path.
+3.  Use the supplied `ChapterMetadata` to populate filenames or metadata.
+4.  Respect the project's non-commercial license—plugins must not include monetization or tracking code.
+
+Once enabled from the Settings tab, your plugin will appear in the GUI and participate in downloads automatically.
+
+### Future Extensions
+
+-   Explore exposing plugin entry points so third-party packages installed via `pip` can register automatically.
 
 ---
 

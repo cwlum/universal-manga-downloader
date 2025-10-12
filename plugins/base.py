@@ -1,0 +1,249 @@
+"""Plugin base classes and dynamic loader for Universal Manga Downloader."""
+
+from __future__ import annotations
+
+import importlib.util
+import inspect
+import logging
+from abc import ABC, abstractmethod
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from types import ModuleType
+from typing import TypedDict, cast
+
+from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
+
+
+class ParsedChapter(TypedDict):
+    """Structured chapter data emitted by parser plugins."""
+
+    title: str
+    chapter: str
+    image_urls: list[str]
+
+
+class ChapterMetadata(TypedDict):
+    """Metadata describing a downloaded chapter for converters."""
+
+    title: str
+    chapter: str
+    source_url: str
+
+
+class BasePlugin(ABC):
+    """Abstract base class for parser plugins."""
+
+    @abstractmethod
+    def get_name(self) -> str:
+        """Return a human friendly plugin name."""
+
+    @abstractmethod
+    def can_handle(self, url: str) -> bool:
+        """Return ``True`` when the plugin can process the provided URL."""
+
+    @abstractmethod
+    def parse(self, soup: BeautifulSoup, url: str) -> ParsedChapter | None:
+        """Extract chapter information from the given page."""
+
+    def on_load(self) -> None:  # pragma: no cover - optional hook
+        """Hook executed after the plugin instance has been created."""
+        return None
+
+    def on_unload(self) -> None:  # pragma: no cover - optional hook
+        """Hook executed right before the plugin is disabled."""
+        return None
+
+    @staticmethod
+    def sanitize_filename(name: str) -> str:
+        """Return a filesystem-friendly representation of ``name``."""
+
+        import re
+
+        sanitized = re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
+        sanitized = re.sub(r"_{3,}", "__", sanitized)
+        return sanitized.strip("_")
+
+
+class BaseConverter(ABC):
+    """Abstract base class for output converters."""
+
+    @abstractmethod
+    def get_name(self) -> str:
+        """Return a human friendly converter name."""
+
+    @abstractmethod
+    def get_output_extension(self) -> str:
+        """Return the file extension (including dot) produced by the converter."""
+
+    @abstractmethod
+    def convert(
+        self,
+        image_files: Sequence[Path],
+        output_dir: Path,
+        metadata: ChapterMetadata,
+    ) -> Path | None:
+        """Create an artifact from ``image_files`` and return its path."""
+
+    def on_load(self) -> None:  # pragma: no cover - optional hook
+        """Hook executed when the converter becomes active."""
+        return None
+
+    def on_unload(self) -> None:  # pragma: no cover - optional hook
+        """Hook executed when the converter is disabled."""
+        return None
+
+
+class PluginType(str, Enum):
+    """Enumeration describing the plugin category."""
+
+    PARSER = "parser"
+    CONVERTER = "converter"
+
+
+PluginInstance = BasePlugin | BaseConverter
+
+
+@dataclass(slots=True)
+class PluginRecord:
+    """Container describing a loaded plugin instance."""
+
+    name: str
+    plugin_type: PluginType
+    instance: PluginInstance
+    enabled: bool = True
+    module_name: str = ""
+
+
+class PluginManager:
+    """Discover and manage parser and converter plugins."""
+
+    def __init__(self, plugin_dir: Path | None = None) -> None:
+        self._plugin_dir = plugin_dir or Path(__file__).resolve().parent
+        self._records: list[PluginRecord] = []
+        self._record_index: dict[tuple[PluginType, str], PluginRecord] = {}
+
+    def load_plugins(self) -> None:
+        """Discover plugins inside ``self._plugin_dir`` and instantiate them."""
+
+        for file_path in sorted(self._plugin_dir.glob("*.py")):
+            if file_path.name in {"__init__.py"}:
+                continue
+            if file_path.name.startswith("_") or file_path.name.startswith("."):
+                continue
+
+            module_name = f"{self._plugin_dir.name}.{file_path.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            if spec is None or spec.loader is None:
+                logger.warning("Skipping plugin %s: unable to create module spec", file_path)
+                continue
+
+            module = importlib.util.module_from_spec(spec)
+            try:
+                spec.loader.exec_module(module)
+            except Exception:  # noqa: BLE001 - surface plugin loader errors
+                logger.exception("Failed to load plugin module %s", file_path)
+                continue
+
+            self._register_module(module)
+
+    def _register_module(self, module: ModuleType) -> None:
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if issubclass(obj, BasePlugin) and obj is not BasePlugin:
+                self._register_plugin(obj, PluginType.PARSER, module.__name__)
+            elif issubclass(obj, BaseConverter) and obj is not BaseConverter:
+                self._register_plugin(obj, PluginType.CONVERTER, module.__name__)
+
+    def _register_plugin(self, cls: type[PluginInstance], plugin_type: PluginType, module_name: str) -> None:
+        try:
+            instance = cast(PluginInstance, cls())
+        except Exception:  # noqa: BLE001 - plugin constructors may raise
+            logger.exception("Failed to instantiate plugin %s.%s", module_name, cls.__name__)
+            return
+
+        name = instance.get_name()
+        key = (plugin_type, name)
+        if key in self._record_index:
+            logger.warning(
+                "Duplicate plugin detected: %s (%s). Keeping the first instance.",
+                name,
+                plugin_type.value,
+            )
+            return
+
+        record = PluginRecord(name=name, plugin_type=plugin_type, instance=instance, module_name=module_name)
+        self._records.append(record)
+        self._record_index[key] = record
+
+        try:
+            instance.on_load()
+        except Exception:  # noqa: BLE001 - plugin hooks may raise
+            logger.exception("Plugin %s failed during on_load", name)
+
+    def get_records(self, plugin_type: PluginType | None = None) -> list[PluginRecord]:
+        """Return metadata about loaded plugins, optionally filtered by type."""
+
+        if plugin_type is None:
+            return list(self._records)
+        return [record for record in self._records if record.plugin_type is plugin_type]
+
+    def iter_enabled_parsers(self) -> Iterator[BasePlugin]:
+        """Yield active parser plugins."""
+
+        for record in self._records:
+            if record.plugin_type is PluginType.PARSER and record.enabled:
+                yield cast(BasePlugin, record.instance)
+
+    def iter_enabled_converters(self) -> Iterator[BaseConverter]:
+        """Yield active converter plugins."""
+
+        for record in self._records:
+            if record.plugin_type is PluginType.CONVERTER and record.enabled:
+                yield cast(BaseConverter, record.instance)
+
+    def set_enabled(self, plugin_type: PluginType, name: str, enabled: bool) -> None:
+        """Update the enabled state of the specified plugin."""
+
+        record = self._record_index.get((plugin_type, name))
+        if record is None:
+            logger.warning("Attempted to toggle unknown plugin %s (%s)", name, plugin_type.value)
+            return
+
+        if record.enabled == enabled:
+            return
+
+        record.enabled = enabled
+        hook = record.instance.on_load if enabled else record.instance.on_unload
+        try:
+            hook()
+        except Exception:  # noqa: BLE001 - plugin hooks may raise
+            logger.exception(
+                "Plugin %s raised an exception during %s", name, "on_load" if enabled else "on_unload"
+            )
+
+    def shutdown(self) -> None:
+        """Invoke ``on_unload`` for all active plugins."""
+
+        for record in self._records:
+            if not record.enabled:
+                continue
+            try:
+                record.instance.on_unload()
+            except Exception:  # noqa: BLE001
+                logger.exception("Plugin %s failed during shutdown", record.name)
+
+        self._records.clear()
+        self._record_index.clear()
+
+__all__ = [
+    "BaseConverter",
+    "BasePlugin",
+    "ChapterMetadata",
+    "ParsedChapter",
+    "PluginManager",
+    "PluginRecord",
+    "PluginType",
+]

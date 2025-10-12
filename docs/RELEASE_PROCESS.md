@@ -9,7 +9,7 @@ This project uses [Release Please](https://github.com/googleapis/release-please)
 ### Automatic Process
 
 1. **Developer creates PR with conventional commits**
-   - `feat:` → Minor version bump (1.1.0 → 1.2.0)
+   - `feat:` → Minor version bump (1.1.0 → 1.2.1)
    - `fix:` → Patch version bump (1.1.0 → 1.1.1)
    - `BREAKING CHANGE:` → Major version bump (1.1.0 → 2.0.0)
 
@@ -50,11 +50,11 @@ This project uses [Release Please](https://github.com/googleapis/release-please)
 
 **Manual Process**:
 
-1. When Release Please creates a release PR (e.g., v1.2.0)
+1. When Release Please creates a release PR (e.g., v1.2.1)
 2. Manually update README.md:
    ```diff
    - ![Version](https://img.shields.io/badge/version-1.1.0-orange)
-   + ![Version](https://img.shields.io/badge/version-1.2.0-orange)
+   + ![Version](https://img.shields.io/badge/version-1.2.1-orange)
    ```
 3. Commit with:
    ```bash
@@ -87,11 +87,11 @@ Our badge format (`https://img.shields.io/badge/version-1.0.0-orange`) doesn't m
              │
              ├─→ Analyze commits (feat/fix)
              │
-             ├─→ Calculate next version (1.2.0)
+             ├─→ Calculate next version (1.2.1)
              │
              ├─→ Update CHANGELOG.md
              │
-             ├─→ Update manifest → "1.2.0"
+             ├─→ Update manifest → "1.2.1"
              │
              └─→ (Manual) Update README.md
 ```
@@ -112,7 +112,7 @@ README.md: "1.1.0"
 README.md: "1.2.1"  ← This change is IGNORED
 
 # Next release (after `feat:` commit)
-Release Please calculates: 1.1.0 + minor = 1.2.0
+Release Please calculates: 1.1.0 + minor = 1.2.1
                                     ↑
                         Based ONLY on manifest.json
 ```
@@ -178,7 +178,7 @@ Create a `version.py` or `__version__.py` file:
 
 ```python
 # version.py
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 ```
 
 Then reference it in README using a build step or keep it simple.
