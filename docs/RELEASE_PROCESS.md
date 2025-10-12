@@ -73,6 +73,64 @@ Release Please's generic updater looks for specific patterns:
 
 Our badge format (`https://img.shields.io/badge/version-1.0.0-orange`) doesn't match these patterns.
 
+## ⚠️ **CRITICAL: Version Control Flow**
+
+### The Single Source of Truth
+
+**`.release-please-manifest.json` is the ONLY source of truth for versioning.**
+
+```
+┌─────────────────────────────────────┐
+│  .release-please-manifest.json      │  ← Truth Source
+│  { ".": "1.1.0" }                   │
+└────────────┬────────────────────────┘
+             │
+             ├─→ Analyze commits (feat/fix)
+             │
+             ├─→ Calculate next version (1.2.0)
+             │
+             ├─→ Update CHANGELOG.md
+             │
+             ├─→ Update manifest → "1.2.0"
+             │
+             └─→ (Manual) Update README.md
+```
+
+### ⛔ IMPORTANT: README Updates Do NOT Affect Versioning
+
+**Q: If I manually update README to 1.2.1, will Release Please use 1.3.0 next?**
+
+**A: NO! Release Please completely ignores README versions.**
+
+Example:
+```bash
+# Current state
+.release-please-manifest.json: "1.1.0"
+README.md: "1.1.0"
+
+# You manually change README
+README.md: "1.2.1"  ← This change is IGNORED
+
+# Next release (after `feat:` commit)
+Release Please calculates: 1.1.0 + minor = 1.2.0
+                                    ↑
+                        Based ONLY on manifest.json
+```
+
+**Key Points**:
+- ✅ Release Please only reads `.release-please-manifest.json`
+- ✅ Version calculation: `manifest version + commit type`
+- ❌ Release Please does NOT read README versions
+- ❌ Manually updating README won't change version logic
+
+### ✅ Correct Version Update Flow
+
+1. **Current Version**: Check `.release-please-manifest.json`
+2. **Make Changes**: Commit with `feat:` or `fix:`
+3. **Release Please**: Creates PR with calculated version
+4. **Manual Step**: Update README in the release PR branch
+5. **Merge PR**: All files sync to new version
+
 ## 🔄 Future Improvements
 
 ### Option 1: CI Script
