@@ -1,12 +1,13 @@
 # Changelog
 
-## [1.2.1](https://github.com/cwlum/bato-downloader/compare/v1.2.0...v1.2.1) (2025-10-13)
+## [1.3.0](https://github.com/cwlum/bato-downloader/compare/v1.2.0...v1.3.0) (2025-10-12)
+
 
 ### Features
 
-* introduce a safe plugin loader with GUI toggles for enabling or disabling site and converter plugins
-* add bundled PDF and CBZ converter plugins alongside the migrated Bato parser plugin
-
+* add plugin architecture for parsers and converters ([4cfc9c4](https://github.com/cwlum/bato-downloader/commit/4cfc9c461f27c4daf3ae88fae01e6efe93719a7e))
+* add plugin architecture for parsers and converters ([4cfc9c4](https://github.com/cwlum/bato-downloader/commit/4cfc9c461f27c4daf3ae88fae01e6efe93719a7e))
+* add plugin architecture for parsers and converters ([c26ca8a](https://github.com/cwlum/bato-downloader/commit/c26ca8a76cf25d197f44334ba974f9c76b273d48))
 
 ## [1.2.0](https://github.com/cwlum/bato-downloader/compare/v1.1.0...v1.2.0) (2025-10-12)
 
@@ -68,3 +69,9 @@
 * Add support for WebP images in PDF conversion ([b34fd10](https://github.com/cwlum/bato-downloader/commit/b34fd10bb91df81ad447c7af8ab9d24ed6472cba))
 * Implement dual-method parsing for image list ([d48545c](https://github.com/cwlum/bato-downloader/commit/d48545c2e6db01f3fd4745fccf84625415f8e08c))
 * Use cloudscraper to bypass anti-bot protection ([74ac86f](https://github.com/cwlum/bato-downloader/commit/74ac86fd04df9d591926b53d75c981ffec87755e))
+## [1.2.1](https://github.com/cwlum/bato-downloader/compare/v1.2.0...v1.2.1) (2025-10-13)
+
+### Features
+
+* introduce a safe plugin loader with GUI toggles for enabling or disabling site and converter plugins
+* add bundled PDF and CBZ converter plugins alongside the migrated Bato parser plugin
