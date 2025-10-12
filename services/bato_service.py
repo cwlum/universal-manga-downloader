@@ -6,24 +6,29 @@ from urllib.parse import urljoin
 import cloudscraper
 from bs4 import BeautifulSoup
 
+from config import CONFIG
+
 logger = logging.getLogger(__name__)
 
 
 class BatoService:
     """Lightweight helper that scrapes search and series pages from Bato.to."""
 
-    BASE_URL = "https://bato.to"
-    SEARCH_PATH = "/search"
-
     def __init__(self, scraper: cloudscraper.CloudScraper | None = None) -> None:
         # Reuse the downloader's scraper if available to play nicely with Cloudflare.
         self._scraper = scraper or cloudscraper.create_scraper()
+        self.base_url = CONFIG.service.bato_base_url
+        self.search_path = CONFIG.service.bato_search_path
+        self.max_search_pages = CONFIG.service.bato_max_search_pages
 
-    def search_manga(self, query: str, max_pages: int = 3) -> list[dict[str, str]]:
+    def search_manga(self, query: str, max_pages: int | None = None) -> list[dict[str, str]]:
         """Return a list of search results for the supplied query."""
         normalized_query = query.strip()
         if not normalized_query:
             return []
+
+        if max_pages is None:
+            max_pages = self.max_search_pages
 
         results: list[dict[str, str]] = []
         seen_urls: set[str] = set()
@@ -31,9 +36,9 @@ class BatoService:
         for page in range(1, max(1, max_pages) + 1):
             params = {"word": normalized_query, "page": page}
             response = self._scraper.get(
-                urljoin(self.BASE_URL, self.SEARCH_PATH),
+                urljoin(self.base_url, self.search_path),
                 params=params,
-                timeout=15,
+                timeout=CONFIG.download.search_timeout,
             )
             response.raise_for_status()
 
@@ -49,7 +54,7 @@ class BatoService:
                 if not isinstance(href, str):
                     continue
 
-                series_url = urljoin(self.BASE_URL, href)
+                series_url = urljoin(self.base_url, href)
                 if series_url in seen_urls:
                     continue
 
@@ -150,7 +155,7 @@ class BatoService:
             chapters.append(
                 {
                     "title": display_title,
-                    "url": urljoin(self.BASE_URL, href),
+                    "url": urljoin(self.base_url, href),
                     "label": base_title or display_title,
                 }
             )
