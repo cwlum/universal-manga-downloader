@@ -9,9 +9,9 @@ This project uses [Release Please](https://github.com/googleapis/release-please)
 ### Automatic Process
 
 1. **Developer creates PR with conventional commits**
-   - `feat:` → Minor version bump (1.1.0 → 1.2.1)
-   - `fix:` → Patch version bump (1.1.0 → 1.1.1)
-   - `BREAKING CHANGE:` → Major version bump (1.1.0 → 2.0.0)
+   - `feat:` → Minor version bump (current release is 1.1.0)
+   - `fix:` → Patch version bump (current release is 1.1.0)
+   - `BREAKING CHANGE:` → Major version bump (current release is 1.1.0)
 
 2. **PR is merged to main**
    - GitHub Action triggers Release Please workflow
@@ -50,11 +50,11 @@ This project uses [Release Please](https://github.com/googleapis/release-please)
 
 **Manual Process**:
 
-1. When Release Please creates a release PR (e.g., v1.2.1)
+1. When Release Please creates a release PR for v1.1.0
 2. Manually update README.md:
    ```diff
-   - ![Version](https://img.shields.io/badge/version-1.1.0-orange)
-   + ![Version](https://img.shields.io/badge/version-1.2.1-orange)
+   - ![Version](https://img.shields.io/badge/version-X.Y.Z-orange)
+   + ![Version](https://img.shields.io/badge/version-1.1.0-orange)
    ```
 3. Commit with:
    ```bash
@@ -67,11 +67,11 @@ This project uses [Release Please](https://github.com/googleapis/release-please)
 ### Why Not Automatic?
 
 Release Please's generic updater looks for specific patterns:
-- `"version": "1.0.0"` (JSON)
-- `version = "1.0.0"` (TOML)
-- `__version__ = "1.0.0"` (Python)
+- `"version": "1.1.0"` (JSON)
+- `version = "1.1.0"` (TOML)
+- `__version__ = "1.1.0"` (Python)
 
-Our badge format (`https://img.shields.io/badge/version-1.0.0-orange`) doesn't match these patterns.
+Our badge format (`https://img.shields.io/badge/version-1.1.0-orange`) doesn't match these patterns.
 
 ## ⚠️ **CRITICAL: Version Control Flow**
 
@@ -87,18 +87,18 @@ Our badge format (`https://img.shields.io/badge/version-1.0.0-orange`) doesn't m
              │
              ├─→ Analyze commits (feat/fix)
              │
-             ├─→ Calculate next version (1.2.1)
+             ├─→ Calculate next version (based on 1.1.0)
              │
              ├─→ Update CHANGELOG.md
              │
-             ├─→ Update manifest → "1.2.1"
+             ├─→ Update manifest → "1.1.0"
              │
              └─→ (Manual) Update README.md
 ```
 
 ### ⛔ IMPORTANT: README Updates Do NOT Affect Versioning
 
-**Q: If I manually update README to 1.2.1, will Release Please use 1.3.0 next?**
+**Q: If I manually update README to 1.1.0, will Release Please use 1.1.0 next?**
 
 **A: NO! Release Please completely ignores README versions.**
 
@@ -109,10 +109,10 @@ Example:
 README.md: "1.1.0"
 
 # You manually change README
-README.md: "1.2.1"  ← This change is IGNORED
+README.md: "1.1.0"  ← This change is IGNORED
 
 # Next release (after `feat:` commit)
-Release Please calculates: 1.1.0 + minor = 1.2.1
+Release Please calculates: 1.1.0 + minor = next release version
                                     ↑
                         Based ONLY on manifest.json
 ```
@@ -178,7 +178,7 @@ Create a `version.py` or `__version__.py` file:
 
 ```python
 # version.py
-__version__ = "1.2.1"
+__version__ = "1.1.0"
 ```
 
 Then reference it in README using a build step or keep it simple.

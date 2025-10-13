@@ -12,9 +12,9 @@ from collections.abc import Iterable, Sequence
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 from numbers import Real
 from pathlib import Path
-from functools import partial
 from tkinter import filedialog, ttk
 from typing import TypedDict
 from urllib.parse import urlparse

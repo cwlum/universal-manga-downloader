@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.0-orange)
+![Version](https://img.shields.io/badge/version-1.1.0-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--12-informational)
 
@@ -12,7 +12,7 @@ This tool is built on a **modular plugin engine**, making it adaptable to future
 
 ## A Brand New Tabbed Interface
 
-Version 1.0 introduces a tabbed workspace that cleanly separates searching, monitoring your download queue, and configuration.
+Version 1.1.0 introduces a tabbed workspace that cleanly separates searching, monitoring your download queue, and configuration.
 
 ### Browser
 The Browser tab is where you can search for manga, review series info, and easily select chapters for download.
@@ -84,7 +84,7 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes.
 
-Universal Manga Downloader 1.3.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
+Universal Manga Downloader 1.1.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
 
 ### Adding a Parser Plugin
 
