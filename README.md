@@ -12,7 +12,7 @@ This tool is built on a **modular plugin engine**, making it adaptable to future
 
 ## A Brand New Tabbed Interface
 
-Version 1.1.0 introduces a tabbed workspace that cleanly separates searching, monitoring your download queue, and configuration.
+Version 1.0.0 introduces a tabbed workspace that cleanly separates searching, monitoring your download queue, and configuration.
 
 ### Browser
 The Browser tab is where you can search for manga, review series info, and easily select chapters for download.
