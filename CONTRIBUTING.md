@@ -65,14 +65,48 @@ pytest -v
 
 ## 📮 Pull Request Process
 
-1. Ensure your branch is rebased on the latest `main`.
-2. Update documentation when behavior changes (README, DEVELOPMENT.md, docs/).
-3. Describe your change clearly in the PR template:
-   - Summary of the feature or fix.
-   - Testing steps and commands executed.
-   - Any follow-up work or limitations.
-4. Link to related issues or discussions.
-5. Submit the PR; reviewers may request adjustments or additional tests.
+1. **Ensure your branch is up-to-date** with the latest `main`:
+   ```bash
+   git fetch upstream
+   git rebase upstream/main
+   ```
+
+2. **Run all quality checks** and ensure they pass:
+   ```bash
+   ruff check .
+   mypy .
+   pytest
+   ```
+
+3. **Update documentation** when behavior changes:
+   - `README.md` for user-facing changes
+   - `DEVELOPMENT.md` for development workflow changes
+   - `ARCHITECTURE.md` for architectural changes
+   - `PLUGINS.md` for plugin API changes
+   - Add docstrings and comments for complex code
+
+4. **Write a clear PR description** using the provided template:
+   - **Summary**: What does this PR do?
+   - **Motivation**: Why is this change needed?
+   - **Testing**: How did you test this? Include steps to reproduce
+   - **Screenshots**: If applicable, for UI changes
+   - **Breaking Changes**: If any, list them clearly
+   - **Related Issues**: Link to issues this PR addresses
+
+5. **Follow commit message conventions**:
+   ```
+   feat: Add EPUB converter plugin
+   fix: Resolve race condition in queue manager
+   docs: Update architecture documentation
+   refactor: Extract UI helpers into utils module
+   test: Add tests for queue state transitions
+   ```
+
+6. **Link to related issues**: Use keywords like "Fixes #123" or "Closes #456"
+
+7. **Submit the PR** and be responsive to reviewer feedback
+
+8. **Wait for approval**: Maintainers will review and may request changes
 
 ## 🤝 Community Expectations
 

@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.1.0-orange)
+![Version](https://img.shields.io/badge/version-1.1.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--12-informational)
 
@@ -82,7 +82,9 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 ## For Developers: Extend with Plugins
 
-See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes. Refer to `docs/PLUGINS.md` for the full plugin specification, discovery rules, and example implementations.
+**New to the project?** Start with **[ONBOARDING.md](ONBOARDING.md)** for a quick 5-minute setup guide!
+
+See **[DEVELOPMENT.md](DEVELOPMENT.md)** for environment setup, linting, and type-checking instructions before contributing changes. Refer to **[PLUGINS.md](PLUGINS.md)** for the full plugin specification, discovery rules, and example implementations. Check out **[ARCHITECTURE.md](ARCHITECTURE.md)** to understand the system design.
 
 Universal Manga Downloader 1.1.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
 

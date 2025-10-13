@@ -96,4 +96,72 @@ Update `config.py` with new settings in the appropriate config class:
 
 ## Code Style
 
-Review `AGENTS.md` for coding conventions before contributing changes.
+Review **[AGENTS.md](AGENTS.md)** for AI-specific coding conventions and **[ONBOARDING.md](ONBOARDING.md)** for general coding standards before contributing changes.
+
+### Key Principles
+
+1. **Type Safety**: Use comprehensive type hints (Python 3.10+ syntax)
+2. **Logging**: Use `logging` module instead of `print()` statements
+3. **Error Handling**: Catch specific exceptions and log with context
+4. **Docstrings**: Document public functions and classes
+5. **Testing**: Write tests for new features and bug fixes
+
+## Git Workflow
+
+### Branch Naming
+
+- `feature/description` - New features
+- `fix/description` - Bug fixes
+- `refactor/description` - Code improvements
+- `docs/description` - Documentation updates
+
+### Commit Messages
+
+Follow conventional commits format:
+
+```
+feat: Add EPUB converter plugin
+fix: Resolve race condition in queue manager
+docs: Update ARCHITECTURE.md with threading model
+refactor: Extract UI helpers into utils module
+```
+
+### Pull Request Process
+
+1. Create a feature branch from `main`
+2. Make your changes with clear, atomic commits
+3. Run quality checks (ruff, mypy, pytest)
+4. Push to your fork
+5. Open a pull request with a clear description
+6. Address review feedback
+7. Maintainer will merge when approved
+
+## Troubleshooting
+
+### Import Errors
+
+If you see import errors, ensure:
+- Virtual environment is activated
+- All dependencies are installed: `pip install -r requirements.txt`
+- You're running from the project root directory
+
+### Type Checking Errors
+
+If mypy reports errors:
+- Add type hints to function signatures
+- Use `# type: ignore[error-code]` sparingly with comments
+- Update `pyproject.toml` if needed for project-wide settings
+
+### Test Failures
+
+If tests fail:
+- Run tests individually: `pytest tests/test_core/test_queue_manager.py -v`
+- Check for missing mocks or fixtures
+- Ensure test data files exist if needed
+
+## Getting Help
+
+- Open an issue on GitHub for bugs or feature requests
+- Tag issues with `question` for help
+- Check existing issues before creating new ones
+- See **[ONBOARDING.md](ONBOARDING.md)** for common developer tasks

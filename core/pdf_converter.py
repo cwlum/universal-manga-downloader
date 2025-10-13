@@ -1,9 +1,19 @@
-"""PDF conversion utilities for manga chapters."""
+"""PDF conversion utilities for manga chapters.
+
+.. deprecated:: 1.1.0
+    This module is deprecated and will be removed in version 2.0.0.
+    Use the plugin system instead: plugins/pdf_converter.py
+
+    The PDF converter has been migrated to the plugin architecture for better
+    modularity and extensibility. All new converter implementations should use
+    the BaseConverter interface from plugins/base.py.
+"""
 
 from __future__ import annotations
 
 import logging
 import os
+import warnings
 from typing import TYPE_CHECKING
 
 from PIL import Image
@@ -15,9 +25,22 @@ from config import CONFIG
 
 logger = logging.getLogger(__name__)
 
+# Issue deprecation warning when this module is imported
+warnings.warn(
+    "core.pdf_converter is deprecated and will be removed in version 2.0.0. "
+    "Use plugins.pdf_converter.PDFConverter instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class PDFConverter:
-    """Handles conversion of downloaded images to PDF format."""
+    """Handles conversion of downloaded images to PDF format.
+
+    .. deprecated:: 1.1.0
+        Use plugins.pdf_converter.PDFConverter instead. This class will be
+        removed in version 2.0.0.
+    """
 
     def __init__(self) -> None:
         self.supported_formats = CONFIG.pdf.supported_formats
