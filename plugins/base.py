@@ -108,6 +108,73 @@ PluginInstance = BasePlugin | BaseConverter
 
 
 @dataclass(slots=True)
+class PluginSource:
+    """Description of a discovered plugin class."""
+
+    plugin_type: PluginType
+    module_name: str
+    cls: type[PluginInstance]
+
+    @property
+    def class_name(self) -> str:
+        return self.cls.__name__
+
+
+class PluginLoader:
+    """Discover plugin classes from a directory."""
+
+    def __init__(self, plugin_dir: Path) -> None:
+        self._plugin_dir = plugin_dir
+
+    @property
+    def plugin_dir(self) -> Path:
+        return self._plugin_dir
+
+    def discover(self) -> Iterator[PluginSource]:
+        """Yield `PluginSource` objects for discoverable plugins."""
+
+        for file_path in self._iter_plugin_files():
+            module = self._load_module(file_path)
+            if module is None:
+                continue
+            yield from self._iter_module_plugins(module)
+
+    def _iter_plugin_files(self) -> Iterator[Path]:
+        if not self._plugin_dir.exists():
+            logger.warning("Plugin directory %s does not exist", self._plugin_dir)
+            return
+
+        for file_path in sorted(self._plugin_dir.glob("*.py")):
+            if file_path.name in {"__init__.py"}:
+                continue
+            if file_path.name.startswith("_") or file_path.name.startswith("."):
+                continue
+            yield file_path
+
+    def _load_module(self, file_path: Path) -> ModuleType | None:
+        module_name = f"{self._plugin_dir.name}.{file_path.stem}"
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        if spec is None or spec.loader is None:
+            logger.warning("Skipping plugin %s: unable to create module spec", file_path)
+            return None
+
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+        except Exception:  # noqa: BLE001 - surface plugin loader errors
+            logger.exception("Failed to load plugin module %s", file_path)
+            return None
+        return module
+
+    def _iter_module_plugins(self, module: ModuleType) -> Iterator[PluginSource]:
+        for _, obj in inspect.getmembers(module, inspect.isclass):
+            if issubclass(obj, BasePlugin) and obj is not BasePlugin:
+                yield PluginSource(PluginType.PARSER, module.__name__, cast(type[PluginInstance], obj))
+            elif issubclass(obj, BaseConverter) and obj is not BaseConverter:
+                yield PluginSource(PluginType.CONVERTER, module.__name__, cast(type[PluginInstance], obj))
+
+
+@dataclass(slots=True)
 class PluginRecord:
     """Container describing a loaded plugin instance."""
 
@@ -116,39 +183,24 @@ class PluginRecord:
     instance: PluginInstance
     enabled: bool = True
     module_name: str = ""
+    class_name: str = ""
 
 
 class PluginManager:
     """Discover and manage parser and converter plugins."""
 
-    def __init__(self, plugin_dir: Path | None = None) -> None:
-        self._plugin_dir = plugin_dir or Path(__file__).resolve().parent
+    def __init__(self, plugin_dir: Path | None = None, loader: PluginLoader | None = None) -> None:
+        plugin_dir = plugin_dir or Path(__file__).resolve().parent
+        self._loader = loader or PluginLoader(plugin_dir)
+        self._plugin_dir = self._loader.plugin_dir
         self._records: list[PluginRecord] = []
         self._record_index: dict[tuple[PluginType, str], PluginRecord] = {}
 
     def load_plugins(self) -> None:
-        """Discover plugins inside ``self._plugin_dir`` and instantiate them."""
+        """Discover plugins via the configured loader and instantiate them."""
 
-        for file_path in sorted(self._plugin_dir.glob("*.py")):
-            if file_path.name in {"__init__.py"}:
-                continue
-            if file_path.name.startswith("_") or file_path.name.startswith("."):
-                continue
-
-            module_name = f"{self._plugin_dir.name}.{file_path.stem}"
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
-            if spec is None or spec.loader is None:
-                logger.warning("Skipping plugin %s: unable to create module spec", file_path)
-                continue
-
-            module = importlib.util.module_from_spec(spec)
-            try:
-                spec.loader.exec_module(module)
-            except Exception:  # noqa: BLE001 - surface plugin loader errors
-                logger.exception("Failed to load plugin module %s", file_path)
-                continue
-
-            self._register_module(module)
+        for source in self._loader.discover():
+            self._register_plugin(source.cls, source.plugin_type, source.module_name)
 
     def _register_module(self, module: ModuleType) -> None:
         for _, obj in inspect.getmembers(module, inspect.isclass):
@@ -174,7 +226,13 @@ class PluginManager:
             )
             return
 
-        record = PluginRecord(name=name, plugin_type=plugin_type, instance=instance, module_name=module_name)
+        record = PluginRecord(
+            name=name,
+            plugin_type=plugin_type,
+            instance=instance,
+            module_name=module_name,
+            class_name=cls.__name__,
+        )
         self._records.append(record)
         self._record_index[key] = record
 
@@ -243,7 +301,9 @@ __all__ = [
     "BasePlugin",
     "ChapterMetadata",
     "ParsedChapter",
+    "PluginLoader",
     "PluginManager",
     "PluginRecord",
+    "PluginSource",
     "PluginType",
 ]

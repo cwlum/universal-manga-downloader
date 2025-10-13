@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from plugins.base import BasePlugin, PluginManager, PluginType
+from plugins.base import BasePlugin, PluginLoader, PluginManager, PluginType
 
 
 def test_sanitize_filename() -> None:
@@ -37,3 +37,17 @@ def test_plugin_manager_discovers_plugins() -> None:
     assert "PDF" in converter_names
 
     manager.shutdown()
+
+
+def test_plugin_loader_discovers_sources() -> None:
+    """PluginLoader enumerates available parser and converter classes."""
+
+    plugin_dir = Path(__file__).resolve().parents[2] / "plugins"
+    loader = PluginLoader(plugin_dir)
+    sources = list(loader.discover())
+
+    parser_classes = {source.class_name for source in sources if source.plugin_type is PluginType.PARSER}
+    converter_classes = {source.class_name for source in sources if source.plugin_type is PluginType.CONVERTER}
+
+    assert "BatoParser" in parser_classes
+    assert {"PDFConverter", "CBZConverter"}.issubset(converter_classes)

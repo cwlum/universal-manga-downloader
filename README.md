@@ -82,7 +82,7 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 ## For Developers: Extend with Plugins
 
-See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes.
+See `DEVELOPMENT.md` for environment setup, linting, and type-checking instructions before contributing changes. Refer to `docs/PLUGINS.md` for the full plugin specification, discovery rules, and example implementations.
 
 Universal Manga Downloader 1.1.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
 
@@ -107,7 +107,7 @@ Universal Manga Downloader 1.1.0 introduces a dedicated plugin system. You can n
 3.  Use the supplied `ChapterMetadata` to populate filenames or metadata.
 4.  Respect the project's non-commercial license—plugins must not include monetization or tracking code.
 
-Once enabled from the Settings tab, your plugin will appear in the GUI and participate in downloads automatically.
+Once enabled from the Settings tab, your plugin will appear in the GUI and participate in downloads automatically. You can also exercise the standalone `PluginLoader` in unit tests to ensure new modules are discoverable before wiring them into the GUI.
 
 ### Future Extensions
 
