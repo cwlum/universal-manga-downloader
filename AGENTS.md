@@ -1,6 +1,6 @@
 # AI Agent Guidelines for Universal Manga Downloader
 
-> **Purpose**: This document serves as the definitive guide for AI agents (like me!) working on this project. Follow these guidelines to ensure high-quality, consistent contributions.
+> **Purpose**: This document serves as the definitive guide for AI agents working on this project. Follow these guidelines to ensure high-quality, consistent contributions.
 
 ## Table of Contents
 
@@ -657,4 +657,3 @@ python manga_downloader.py  # Launch GUI
 ---
 
 *Last updated: 2025-01-13*
-*For questions or clarifications, open an issue on GitHub.*
