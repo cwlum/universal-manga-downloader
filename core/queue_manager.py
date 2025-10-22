@@ -54,6 +54,8 @@ class QueueManager:
         self._active_downloads = 0
         self._total_downloads = 0
         self._completed_downloads = 0
+        self._failed_downloads = 0
+        self._cancelled_downloads = 0
         self._paused = False
         self._queue_items: dict[int, QueueItemData] = {}
         self._deferred_items: list[tuple[int, str, str | None]] = []
@@ -92,8 +94,11 @@ class QueueManager:
         with self._lock:
             if queue_id in self._queue_items:
                 item = self._queue_items[queue_id]
+                previous_state = item.state
                 item.state = QueueState.SUCCESS if success else QueueState.ERROR
                 item.error_message = error
+                if not success and previous_state is not QueueState.ERROR:
+                    self._failed_downloads += 1
             if self._active_downloads > 0:
                 self._active_downloads -= 1
             if self._total_downloads > 0:
@@ -107,7 +112,10 @@ class QueueManager:
         with self._lock:
             if queue_id in self._queue_items:
                 self._queue_items[queue_id].state = QueueState.CANCELLED
+            added = queue_id not in self._cancelled_ids
             self._cancelled_ids.add(queue_id)
+            if added:
+                self._cancelled_downloads += 1
             if self._pending_downloads > 0:
                 self._pending_downloads -= 1
             if self._total_downloads > 0:
@@ -155,6 +163,8 @@ class QueueManager:
                 pending=self._pending_downloads,
                 active=self._active_downloads,
                 completed=self._completed_downloads,
+                failed=self._failed_downloads,
+                cancelled=self._cancelled_downloads,
             )
 
     def is_paused(self) -> bool:
@@ -209,6 +219,8 @@ class QueueManager:
         with self._lock:
             self._total_downloads = 0
             self._completed_downloads = 0
+            self._failed_downloads = 0
+            self._cancelled_downloads = 0
             self._pending_downloads = 0
             self._active_downloads = 0
 

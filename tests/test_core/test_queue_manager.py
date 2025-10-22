@@ -61,6 +61,10 @@ class TestQueueManager:
         manager.start_item(1)
         manager.complete_item(1, success=False, error="Network error")
 
+        stats = manager.get_stats()
+        assert stats.completed == 1
+        assert stats.failed == 1
+
         item = manager.get_item(1)
         assert item is not None
         assert item.state == QueueState.ERROR
@@ -79,6 +83,7 @@ class TestQueueManager:
 
         stats = manager.get_stats()
         assert stats.total == 0  # Cancelled items are removed from total
+        assert stats.cancelled == 1
 
     def test_pause_resume(self):
         """Test pausing and resuming queue."""
@@ -195,3 +200,4 @@ class TestQueueManager:
         assert stats.pending == 3
         assert stats.active == 0
         assert stats.completed == 2
+        assert stats.failed == 1
