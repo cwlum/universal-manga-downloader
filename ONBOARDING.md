@@ -39,7 +39,14 @@ pip install ruff mypy pytest
 ### 2. Run the Application
 
 ```bash
-python manga_downloader.py
+# On macOS/Linux
+./manga
+
+# On Windows
+manga.bat
+
+# Fallback
+python bootstrap.py
 ```
 
 The GUI should open. Try searching for a manga and downloading a chapter.
@@ -64,7 +71,6 @@ pytest
 
 ### Core Modules
 - **`core/queue_manager.py`**: Thread-safe download queue management
-- **`core/pdf_converter.py`**: Legacy PDF conversion (being migrated to plugins)
 
 ### Services
 - **`services/bato_service.py`**: Web scraping for Bato.to search and series info

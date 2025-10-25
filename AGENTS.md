@@ -46,8 +46,7 @@ Universal Manga Downloader
 ├── UI Layer (manga_downloader.py)
 │   └── Tkinter GUI, event handling, user interaction
 ├── Core Layer (core/)
-│   ├── queue_manager.py - Thread-safe queue management
-│   └── pdf_converter.py - DEPRECATED (use plugins instead)
+│   └── queue_manager.py - Thread-safe queue management
 ├── Service Layer (services/)
 │   └── bato_service.py - Web scraping for Bato.to
 ├── Plugin System (plugins/)
