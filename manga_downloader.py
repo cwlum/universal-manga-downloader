@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import threading
+import time
 import tkinter as tk
 from collections.abc import Iterable, Sequence
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
@@ -32,6 +33,7 @@ from utils.file_utils import (
     ensure_directory,
     get_default_download_root,
 )
+from utils.http_client import ScraperPool
 
 STATUS_COLORS: dict[QueueState, str] = {
     QueueState.SUCCESS: "#1a7f37",
@@ -99,6 +101,7 @@ class MangaDownloader(tk.Tk):
         self.bato_service = BatoService()
         self.plugin_manager = PluginManager()
         self.plugin_manager.load_plugins()
+        self.scraper_pool = ScraperPool(CONFIG.download.scraper_pool_size)
         self.search_results: list[SearchResult] = []
         self.series_data: dict[str, object] | None = None
         self.series_chapters: list[SeriesChapter] = []
@@ -106,18 +109,29 @@ class MangaDownloader(tk.Tk):
         self.chapter_executor_lock = threading.Lock()
         self.chapter_executor: ThreadPoolExecutor | None = None
         self._chapter_executor_workers: int | None = None
+        self._image_worker_semaphore = threading.Semaphore(CONFIG.download.max_total_image_workers)
 
-        self.chapter_workers_var = tk.IntVar(value=1)
-        self.image_workers_var = tk.IntVar(value=4)
+        self.chapter_workers_var = tk.IntVar(value=CONFIG.download.default_chapter_workers)
+        self.image_workers_var = tk.IntVar(value=CONFIG.download.default_image_workers)
         self.range_start_var = tk.StringVar()
         self.range_end_var = tk.StringVar()
         self.queue_status_var = tk.StringVar(value="Queue: idle")
         self.download_dir_var = tk.StringVar(value=get_default_download_root())
         self.download_dir_path = self.download_dir_var.get()
         self.download_dir_var.trace_add("write", self._on_download_dir_var_write)
-        self._chapter_workers_value = self._clamp_value(self.chapter_workers_var.get(), 1, 10, 1)
+        self._chapter_workers_value = self._clamp_value(
+            self.chapter_workers_var.get(),
+            CONFIG.download.min_chapter_workers,
+            CONFIG.download.max_chapter_workers,
+            CONFIG.download.default_chapter_workers,
+        )
         self.chapter_workers_var.set(self._chapter_workers_value)
-        self._image_workers_value = self._clamp_value(self.image_workers_var.get(), 1, 32, 4)
+        self._image_workers_value = self._clamp_value(
+            self.image_workers_var.get(),
+            CONFIG.download.min_image_workers,
+            CONFIG.download.max_image_workers,
+            CONFIG.download.default_image_workers,
+        )
         self.image_workers_var.set(self._image_workers_value)
         self.queue_items: dict[int, QueueItem] = {}
         self._queue_item_sequence = 0
@@ -878,7 +892,12 @@ class MangaDownloader(tk.Tk):
         self._queue_set_status(queue_id, "Cancelled", state=QueueState.CANCELLED)
 
     def _ensure_chapter_executor(self, force_reset=False):
-        desired_workers = self._clamp_value(self._chapter_workers_value, 1, 10, 1)
+        desired_workers = self._clamp_value(
+            self._chapter_workers_value,
+            CONFIG.download.min_chapter_workers,
+            CONFIG.download.max_chapter_workers,
+            CONFIG.download.default_chapter_workers,
+        )
         if desired_workers != self._chapter_workers_value:
             self._chapter_workers_value = desired_workers
             self.chapter_workers_var.set(desired_workers)
@@ -897,7 +916,12 @@ class MangaDownloader(tk.Tk):
                 self._chapter_executor_workers = desired_workers
 
     def _on_chapter_workers_change(self, event=None):
-        value = self._clamp_value(self.chapter_workers_var.get(), 1, 10, self._chapter_workers_value or 1)
+        value = self._clamp_value(
+            self.chapter_workers_var.get(),
+            CONFIG.download.min_chapter_workers,
+            CONFIG.download.max_chapter_workers,
+            self._chapter_workers_value or CONFIG.download.default_chapter_workers,
+        )
         if value != self.chapter_workers_var.get():
             self.chapter_workers_var.set(value)
         if value != self._chapter_workers_value or event is None:
@@ -905,7 +929,12 @@ class MangaDownloader(tk.Tk):
             self._ensure_chapter_executor(force_reset=True)
 
     def _on_image_workers_change(self, event=None):
-        value = self._clamp_value(self.image_workers_var.get(), 1, 32, self._image_workers_value or 4)
+        value = self._clamp_value(
+            self.image_workers_var.get(),
+            CONFIG.download.min_image_workers,
+            CONFIG.download.max_image_workers,
+            self._image_workers_value or CONFIG.download.default_image_workers,
+        )
         if value != self.image_workers_var.get():
             self.image_workers_var.set(value)
         if value != self._image_workers_value or event is None:
@@ -1251,6 +1280,7 @@ class MangaDownloader(tk.Tk):
             item = self.queue_items.pop(qid, None)
             if item:
                 item.frame.destroy()
+            self.queue_manager.remove_item(qid)
 
         self._set_status(f"Status: Cleared {len(ids_to_remove)} finished item(s) from the queue.")
 
@@ -1262,7 +1292,7 @@ class MangaDownloader(tk.Tk):
     ) -> None:
         display_label = initial_label or url
         self._on_download_start(display_label, queue_id)
-        scraper = cloudscraper.create_scraper()
+        scraper = self.scraper_pool.acquire()
         chapter_display = display_label
         try:
             self._queue_set_status(queue_id, "Fetching chapter page…", state=QueueState.RUNNING)
@@ -1360,10 +1390,7 @@ class MangaDownloader(tk.Tk):
             logger.exception("Unhandled error while processing %s", chapter_display)
             raise
         finally:
-            try:
-                scraper.close()
-            except Exception:  # noqa: BLE001 - closing failures should not mask errors
-                logger.debug("Failed to close chapter scraper cleanly", exc_info=True)
+            self.scraper_pool.release(scraper)
             self._on_download_end(display_label, queue_id)
 
     def _download_images_concurrently(
@@ -1381,7 +1408,15 @@ class MangaDownloader(tk.Tk):
             self._set_status(f"Status: {chapter_display} • No images found to download.")
             return []
 
-        workers = self._clamp_value(self._image_workers_value or 4, 1, 32, 4)
+        workers = min(
+            self._clamp_value(
+                self._image_workers_value or CONFIG.download.default_image_workers,
+                CONFIG.download.min_image_workers,
+                CONFIG.download.max_image_workers,
+                CONFIG.download.default_image_workers,
+            ),
+            CONFIG.download.max_total_image_workers,
+        )
         self._queue_reset_progress(queue_id, total_images)
         self._queue_set_status(
             queue_id,
@@ -1393,31 +1428,41 @@ class MangaDownloader(tk.Tk):
         failed: list[str] = []
         progress_lock = threading.Lock()
         completed = 0
-        thread_local = threading.local()
-        created_scrapers: list[cloudscraper.CloudScraper] = []
-        scraper_lock = threading.Lock()
         base_headers = dict(scraper.headers)
         if referer_url:
-            base_headers.setdefault("Referer", referer_url)
+            base_headers["Referer"] = referer_url
         base_cookies = scraper.cookies.get_dict()
         request_timeout = CONFIG.download.request_timeout
+        progress_interval = max(0.05, CONFIG.ui.progress_update_interval_ms / 1000)
+        last_ui_update = 0.0
 
-        def acquire_scraper() -> cloudscraper.CloudScraper:
-            session = getattr(thread_local, "scraper", None)
-            if session is None:
-                session = cloudscraper.create_scraper()
-                session.headers.update(base_headers)
-                if base_cookies:
-                    session.cookies.update(base_cookies)
-                with scraper_lock:
-                    created_scrapers.append(session)
-                thread_local.scraper = session
-            return session
+        def emit_progress(completed_count: int, *, force: bool = False) -> None:
+            nonlocal last_ui_update
+            now = time.monotonic()
+            if not force and (now - last_ui_update) < progress_interval:
+                return
+            last_ui_update = now
+            self._queue_update_progress(queue_id, completed_count)
+            self._queue_set_status(
+                queue_id,
+                f"Downloading images ({completed_count}/{total_images})…",
+                state=QueueState.RUNNING,
+            )
+            self._set_status(
+                f"Status: {chapter_display} • {completed_count}/{total_images} image(s) downloaded"
+            )
 
         def fetch_image(index: int, img_url: str) -> tuple[int, bool, str | None]:
+            self._image_worker_semaphore.acquire()
+            session = self.scraper_pool.acquire()
             try:
-                session = acquire_scraper()
-                with session.get(img_url, timeout=request_timeout, stream=True) as img_response:
+                with session.get(
+                    img_url,
+                    timeout=request_timeout,
+                    stream=True,
+                    headers=base_headers,
+                    cookies=base_cookies,
+                ) as img_response:
                     img_response.raise_for_status()
                     file_ext = determine_file_extension(img_url, img_response)
                     file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
@@ -1430,6 +1475,9 @@ class MangaDownloader(tk.Tk):
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Failed to download %s: %s", img_url, exc)
                 return index, False, img_url
+            finally:
+                self.scraper_pool.release(session)
+                self._image_worker_semaphore.release()
 
         with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download") as executor:
             futures = [
@@ -1440,23 +1488,9 @@ class MangaDownloader(tk.Tk):
                 with progress_lock:
                     completed += 1
                     current_completed = completed
-                self._queue_update_progress(queue_id, current_completed)
-                self._queue_set_status(
-                    queue_id,
-                    f"Downloading images ({current_completed}/{total_images})…",
-                    state=QueueState.RUNNING,
-                )
-                self._set_status(
-                    f"Status: {chapter_display} • {current_completed}/{total_images} image(s) downloaded"
-                )
+                emit_progress(current_completed, force=current_completed == total_images)
                 if not success and error_url:
                     failed.append(error_url)
-
-        for session in created_scrapers:
-            try:
-                session.close()
-            except Exception:  # noqa: BLE001 - closing failures are non-fatal
-                logger.debug("Failed to close scraper session cleanly", exc_info=True)
 
         if failed:
             self._queue_set_status(
@@ -1560,6 +1594,7 @@ class MangaDownloader(tk.Tk):
             if self.chapter_executor is not None:
                 self.chapter_executor.shutdown(wait=False)
                 self.chapter_executor = None
+        self.scraper_pool.close()
         self.plugin_manager.shutdown()
         self.destroy()
 

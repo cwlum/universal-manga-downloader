@@ -44,9 +44,6 @@ Thread-safe queue state management:
 
 - **Thread Safety**: All operations use context managers for safe concurrent access
 
-#### `core/pdf_converter.py`
-Legacy PDF conversion (being migrated to plugin system)
-
 ### Layer 3: Services
 
 #### `services/bato_service.py`

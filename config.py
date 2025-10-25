@@ -18,6 +18,7 @@ class UIConfig:
     # UI timing (milliseconds)
     scroll_delay_ms: int = 50
     queue_scroll_delay_ms: int = 50
+    progress_update_interval_ms: int = 125
 
 
 @dataclass(frozen=True)
@@ -32,6 +33,7 @@ class DownloadConfig:
     default_image_workers: int = 4
     max_image_workers: int = 32
     min_image_workers: int = 1
+    max_total_image_workers: int = 48
 
     # Network timeouts (seconds)
     request_timeout: int = 30
@@ -41,6 +43,9 @@ class DownloadConfig:
     # Retry configuration
     max_retries: int = 3
     retry_delay: float = 1.0
+
+    # Networking helpers
+    scraper_pool_size: int = 8
 
 
 @dataclass(frozen=True)

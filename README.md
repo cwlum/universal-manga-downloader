@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.1.2-orange)
+![Version](https://img.shields.io/badge/version-1.1.3-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--10--12-informational)
 
@@ -70,7 +70,10 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 2.  **Open a terminal in this folder**:
     -   **Windows**: Type `cmd` in the folder's address bar and press Enter.
     -   **macOS**: Right-click the folder's title in the Finder window and choose "New Terminal at Folder".
-3.  In the terminal, type `python3 manga_downloader.py` and press Enter.
+3.  Launch the downloader:
+    -   **macOS/Linux**: Run `./manga`
+    -   **Windows**: Run `manga.bat`
+    -   **Fallback**: Run `python3 bootstrap.py` (or `python bootstrap.py`)
 
 #### Step 3: Copy, Paste, and Download
 1.  The GUI window will appear. (It may pause on first run to auto-install libraries).
