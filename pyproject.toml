@@ -1,3 +1,22 @@
+[project]
+name = "universal-manga-downloader"
+version = "0.1.0"
+description = "A universal manga downloader."
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "Pillow",
+    "cloudscraper",
+    "sv-ttk",
+]
+
+[project.scripts]
+umd = "manga_downloader:main"
+
+[tool.setuptools]
+py-modules = ["manga_downloader", "config"]
+packages = ["core", "parsers", "plugins", "services", "utils"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

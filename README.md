@@ -58,28 +58,29 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 
 ---
 
-## How to Use: Quick Start in 3 Steps
+## How to Use: Quick Start
 
-#### Step 1: Download The Tool
-1.  Go to the project's GitHub page.
-2.  Click the green **`< > Code`** button -> **`Download ZIP`**.
-3.  Unzip the downloaded file.
+#### Step 1: Install the Tool
+Open your terminal or command prompt and run the following command to install the tool and its dependencies:
 
-#### Step 2: Find and Run the Script
-1.  Open the unzipped folder.
-2.  **Open a terminal in this folder**:
-    -   **Windows**: Type `cmd` in the folder's address bar and press Enter.
-    -   **macOS**: Right-click the folder's title in the Finder window and choose "New Terminal at Folder".
-3.  Launch the downloader:
-    -   **macOS/Linux**: Run `./manga`
-    -   **Windows**: Run `manga.bat`
-    -   **Fallback**: Run `python3 bootstrap.py` (or `python bootstrap.py`)
+```bash
+pip install .
+```
+*Note: If you have multiple Python versions, you might need to use `pip3`.*
 
-#### Step 3: Copy, Paste, and Download
-1.  The GUI window will appear. (It may pause on first run to auto-install libraries).
-2.  In the **Browser** tab, type a title into **Search Manga** and press `Enter`, or double-click a result to load its synopsis and chapter list automatically.
-3.  Multi-select chapters with Shift/Ctrl, press **Highlight Range** to preselect a span, or paste a chapter URL into **Quick Queue**—then choose **Queue Selected**, **Queue Range**, **Queue All**, or **Queue Download** to add them to the queue.
-4.  Switch to the **Downloads** tab to watch each chapter's progress, and use the **Settings** tab to adjust the download folder or worker counts whenever you need.
+#### Step 2: Launch the Application
+Once the installation is complete, you can run the application from any directory by simply typing:
+
+```bash
+umd
+```
+
+The GUI window will appear, and you can start downloading manga.
+
+#### Step 3: Using the Application
+1.  In the **Browser** tab, type a title into **Search Manga** and press `Enter`, or double-click a result to load its synopsis and chapter list automatically.
+2.  Multi-select chapters with Shift/Ctrl, press **Highlight Range** to preselect a span, or paste a chapter URL into **Quick Queue**—then choose **Queue Selected**, **Queue Range**, **Queue All**, or **Queue Download** to add them to the queue.
+3.  Switch to the **Downloads** tab to watch each chapter's progress, and use the **Settings** tab to adjust the download folder or worker counts whenever you need.
 
 ---
 
