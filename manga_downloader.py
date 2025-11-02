@@ -6,33 +6,25 @@ import logging
 import os
 import sys
 import threading
-import time
 import tkinter as tk
-from collections.abc import Iterable, Sequence
-from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
+from collections.abc import Iterable
+from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from numbers import Real
-from pathlib import Path
 from tkinter import filedialog, ttk
 from typing import TypedDict
 from urllib.parse import urlparse
 
-import cloudscraper
 import requests  # type: ignore[import-untyped]
 import sv_ttk
-from bs4 import BeautifulSoup
 
 from config import CONFIG
+from core.download_task import DownloadTask, DownloadUIHooks
 from core.queue_manager import QueueManager, QueueState
-from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, PluginType
+from plugins.base import PluginManager, PluginType
 from services import BatoService
-from utils.file_utils import (
-    collect_image_files,
-    determine_file_extension,
-    ensure_directory,
-    get_default_download_root,
-)
+from utils.file_utils import ensure_directory, get_default_download_root
 from utils.http_client import ScraperPool
 
 STATUS_COLORS: dict[QueueState, str] = {
@@ -781,12 +773,8 @@ class MangaDownloader(tk.Tk):
 
         self._ensure_chapter_executor()
         assert self.chapter_executor is not None
-        future: Future[None] = self.chapter_executor.submit(
-            self._download_chapter_worker,
-            queue_id,
-            url,
-            initial_label,
-        )
+        task = self._create_download_task(queue_id, url, initial_label)
+        future: Future[None] = self.chapter_executor.submit(task.run)
         self._chapter_futures[queue_id] = future
         self._queue_set_status(queue_id, "Queued", state=QueueState.PENDING)
         self.queue_manager.clear_paused(queue_id)
@@ -795,6 +783,31 @@ class MangaDownloader(tk.Tk):
             self._on_download_task_done(queue_id, fut)
 
         future.add_done_callback(_on_done)
+
+    def _create_download_task(self, queue_id: int, url: str, initial_label: str | None) -> DownloadTask:
+        return DownloadTask(
+            queue_id,
+            url,
+            initial_label,
+            plugin_manager=self.plugin_manager,
+            scraper_pool=self.scraper_pool,
+            image_semaphore=self._image_worker_semaphore,
+            image_worker_count=self._get_image_worker_count(),
+            resolve_download_dir=self._resolve_download_base_dir,
+            ui_hooks=self._build_download_ui_hooks(),
+        )
+
+    def _build_download_ui_hooks(self) -> DownloadUIHooks:
+        return DownloadUIHooks(
+            on_start=self._on_download_start,
+            on_end=self._on_download_end,
+            queue_set_status=self._queue_set_status,
+            queue_mark_finished=self._queue_mark_finished,
+            queue_update_title=self._queue_update_title,
+            queue_reset_progress=self._queue_reset_progress,
+            queue_update_progress=self._queue_update_progress,
+            set_status=self._set_status,
+        )
 
     def _toggle_download_pause(self):
         if self._downloads_paused:
@@ -939,6 +952,15 @@ class MangaDownloader(tk.Tk):
             self.image_workers_var.set(value)
         if value != self._image_workers_value or event is None:
             self._image_workers_value = value
+
+    def _get_image_worker_count(self) -> int:
+        value = self._clamp_value(
+            self._image_workers_value or CONFIG.download.default_image_workers,
+            CONFIG.download.min_image_workers,
+            CONFIG.download.max_image_workers,
+            CONFIG.download.default_image_workers,
+        )
+        return min(value, CONFIG.download.max_total_image_workers)
 
     def _on_download_start(self, label: str | None, queue_id: int) -> None:
         nice_label = label or "chapter"
@@ -1228,12 +1250,18 @@ class MangaDownloader(tk.Tk):
         platform = sys.platform
 
         if platform.startswith("linux"):
-            return 0
+            if delta == 0:
+                return 0
+            if abs(delta) >= 120:
+                return -delta / 120
+            return -1.0 if delta > 0 else 1.0
 
         if platform == "darwin":
+            if delta == 0:
+                return 0
             adjusted = -delta / 120 if abs(delta) >= 120 else -delta
             if adjusted == 0:
-                return -1 if delta > 0 else 1
+                return -1.0 if delta > 0 else 1.0
             return adjusted
 
         if delta == 0:
@@ -1283,288 +1311,6 @@ class MangaDownloader(tk.Tk):
             self.queue_manager.remove_item(qid)
 
         self._set_status(f"Status: Cleared {len(ids_to_remove)} finished item(s) from the queue.")
-
-    def _download_chapter_worker(
-        self,
-        queue_id: int,
-        url: str,
-        initial_label: str | None,
-    ) -> None:
-        display_label = initial_label or url
-        self._on_download_start(display_label, queue_id)
-        scraper = self.scraper_pool.acquire()
-        chapter_display = display_label
-        try:
-            self._queue_set_status(queue_id, "Fetching chapter page…", state=QueueState.RUNNING)
-            self._set_status(f"Status: Fetching {display_label}...")
-            response = scraper.get(url, timeout=CONFIG.download.request_timeout)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
-
-            parser_plugins = list(self.plugin_manager.iter_enabled_parsers())
-            if not parser_plugins:
-                self._queue_mark_finished(queue_id, success=False, message="No parser plugins enabled.")
-                self._set_status("Status: Error - No parser plugins enabled.")
-                return
-
-            parsed_data: ParsedChapter | None = None
-            for parser in parser_plugins:
-                parser_name = parser.get_name()
-                self._queue_set_status(queue_id, f"Parsing with {parser_name}…", state=QueueState.RUNNING)
-                self._set_status(f"Status: {display_label} • trying parser {parser_name}...")
-                if not parser.can_handle(url):
-                    continue
-                parsed_result = parser.parse(soup, url)
-                if parsed_result:
-                    parsed_data = parsed_result
-                    break
-
-            if not parsed_data:
-                self._queue_mark_finished(queue_id, success=False, message="No suitable parser found.")
-                self._set_status("Status: Error - No suitable parser found for this URL.")
-                return
-
-            title = parsed_data["title"]
-            chapter = parsed_data["chapter"]
-            chapter_display = f"{title} — {chapter}"
-            self._queue_update_title(queue_id, chapter_display)
-            self._queue_set_status(queue_id, "Preparing download…", state=QueueState.RUNNING)
-
-            image_urls = parsed_data["image_urls"]
-
-            if not image_urls:
-                self._queue_mark_finished(queue_id, success=False, message="No images found.")
-                self._set_status(f"Status: {chapter_display} • No images found to download.")
-                return
-
-            base_dir = self._resolve_download_base_dir()
-            if not base_dir:
-                self._queue_mark_finished(queue_id, success=False, message="Download directory unavailable.")
-                return
-            download_candidate = os.path.join(base_dir, f"{title}_{chapter}")
-            download_dir = ensure_directory(download_candidate)
-            if not download_dir:
-                self._queue_mark_finished(
-                    queue_id,
-                    success=False,
-                    message="Unable to prepare download directory.",
-                )
-                return
-
-            failed_downloads = self._download_images_concurrently(
-                scraper,
-                image_urls,
-                download_dir,
-                chapter_display,
-                queue_id,
-                url,
-            )
-
-            if failed_downloads and len(failed_downloads) == len(image_urls):
-                self._queue_mark_finished(queue_id, success=False, message="All image downloads failed.")
-                self._set_status(f"Status: Failed to download images for {chapter_display}.")
-                return
-
-            metadata: ChapterMetadata = {"title": title, "chapter": chapter, "source_url": url}
-            conversions_ok = self._run_converters(download_dir, metadata, chapter_display, queue_id)
-            if not conversions_ok:
-                self._queue_mark_finished(queue_id, success=False, message="Conversion failed.")
-                return
-
-            if failed_downloads:
-                failures = len(failed_downloads)
-                message = f"Completed with {failures} failed image(s)."
-                self._queue_mark_finished(queue_id, success=True, message=message)
-                self._set_status(f"Status: Completed {chapter_display} with {failures} failed image(s).")
-            else:
-                self._queue_mark_finished(queue_id, success=True, message="Completed")
-                self._set_status(f"Status: Completed {chapter_display}.")
-        except requests.RequestException as exc:
-            self._queue_mark_finished(queue_id, success=False, message=f"Network error: {exc}")
-            self._set_status(f"Status: Error - Failed to fetch {display_label}: {exc}")
-            logger.exception("Network error while downloading %s", display_label)
-            raise
-        except Exception as exc:  # noqa: BLE001 - we want to surface unexpected failures
-            self._queue_mark_finished(queue_id, success=False, message=f"Error: {exc}")
-            self._set_status(f"Status: Error - Download failed for {chapter_display}: {exc}")
-            logger.exception("Unhandled error while processing %s", chapter_display)
-            raise
-        finally:
-            self.scraper_pool.release(scraper)
-            self._on_download_end(display_label, queue_id)
-
-    def _download_images_concurrently(
-        self,
-        scraper: cloudscraper.CloudScraper,
-        image_urls: Sequence[str],
-        download_dir: str,
-        chapter_display: str,
-        queue_id: int,
-        referer_url: str,
-    ) -> list[str]:
-        total_images = len(image_urls)
-        if total_images == 0:
-            self._queue_mark_finished(queue_id, success=False, message="No images found.")
-            self._set_status(f"Status: {chapter_display} • No images found to download.")
-            return []
-
-        workers = min(
-            self._clamp_value(
-                self._image_workers_value or CONFIG.download.default_image_workers,
-                CONFIG.download.min_image_workers,
-                CONFIG.download.max_image_workers,
-                CONFIG.download.default_image_workers,
-            ),
-            CONFIG.download.max_total_image_workers,
-        )
-        self._queue_reset_progress(queue_id, total_images)
-        self._queue_set_status(
-            queue_id,
-            f"Downloading images (0/{total_images})…",
-            state=QueueState.RUNNING,
-        )
-        self._set_status(f"Status: {chapter_display} • Downloading images...")
-
-        failed: list[str] = []
-        progress_lock = threading.Lock()
-        completed = 0
-        base_headers = dict(scraper.headers)
-        if referer_url:
-            base_headers["Referer"] = referer_url
-        base_cookies = scraper.cookies.get_dict()
-        request_timeout = CONFIG.download.request_timeout
-        progress_interval = max(0.05, CONFIG.ui.progress_update_interval_ms / 1000)
-        last_ui_update = 0.0
-
-        def emit_progress(completed_count: int, *, force: bool = False) -> None:
-            nonlocal last_ui_update
-            now = time.monotonic()
-            if not force and (now - last_ui_update) < progress_interval:
-                return
-            last_ui_update = now
-            self._queue_update_progress(queue_id, completed_count)
-            self._queue_set_status(
-                queue_id,
-                f"Downloading images ({completed_count}/{total_images})…",
-                state=QueueState.RUNNING,
-            )
-            self._set_status(
-                f"Status: {chapter_display} • {completed_count}/{total_images} image(s) downloaded"
-            )
-
-        def fetch_image(index: int, img_url: str) -> tuple[int, bool, str | None]:
-            self._image_worker_semaphore.acquire()
-            session = self.scraper_pool.acquire()
-            try:
-                with session.get(
-                    img_url,
-                    timeout=request_timeout,
-                    stream=True,
-                    headers=base_headers,
-                    cookies=base_cookies,
-                ) as img_response:
-                    img_response.raise_for_status()
-                    file_ext = determine_file_extension(img_url, img_response)
-                    file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
-                    with open(file_path, "wb") as file_handler:
-                        for chunk in img_response.iter_content(chunk_size=65536):
-                            if not chunk:
-                                continue
-                            file_handler.write(chunk)
-                return index, True, None
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to download %s: %s", img_url, exc)
-                return index, False, img_url
-            finally:
-                self.scraper_pool.release(session)
-                self._image_worker_semaphore.release()
-
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download") as executor:
-            futures = [
-                executor.submit(fetch_image, index, img_url) for index, img_url in enumerate(image_urls)
-            ]
-            for future in as_completed(futures):
-                _index, success, error_url = future.result()
-                with progress_lock:
-                    completed += 1
-                    current_completed = completed
-                emit_progress(current_completed, force=current_completed == total_images)
-                if not success and error_url:
-                    failed.append(error_url)
-
-        if failed:
-            self._queue_set_status(
-                queue_id,
-                f"Images downloaded with {len(failed)} failure(s).",
-                state=QueueState.RUNNING,
-            )
-        else:
-            self._queue_set_status(queue_id, "Images downloaded.", state=QueueState.RUNNING)
-
-        return failed
-
-    def _run_converters(
-        self,
-        download_dir: str,
-        metadata: ChapterMetadata,
-        chapter_display: str,
-        queue_id: int,
-    ) -> bool:
-        image_files = collect_image_files(download_dir)
-        if not image_files:
-            self._set_status(f"Status: {chapter_display} • No images available for conversion.")
-            return False
-
-        converters = list(self.plugin_manager.iter_enabled_converters())
-        if not converters:
-            self._queue_set_status(
-                queue_id,
-                "Images downloaded (no converters enabled).",
-                state=QueueState.RUNNING,
-            )
-            self._set_status(f"Status: {chapter_display} • Skipped conversion (no converters enabled).")
-            return True
-
-        success = False
-        output_dir = Path(download_dir)
-        for converter in converters:
-            converter_name = converter.get_name()
-            self._queue_set_status(
-                queue_id,
-                f"Converting with {converter_name}…",
-                state=QueueState.RUNNING,
-            )
-            self._set_status(f"Status: {chapter_display} • Converting with {converter_name}...")
-            try:
-                result_path = converter.convert(image_files, output_dir, metadata)
-            except Exception as exc:  # noqa: BLE001 - plugin failure should be visible
-                logger.exception("Converter %s failed", converter_name)
-                self._queue_set_status(
-                    queue_id,
-                    f"{converter_name} failed: {exc}",
-                    state=QueueState.RUNNING,
-                )
-                continue
-
-            if result_path is None:
-                self._queue_set_status(
-                    queue_id,
-                    f"{converter_name} produced no output.",
-                    state=QueueState.RUNNING,
-                )
-                continue
-
-            success = True
-            self._queue_set_status(
-                queue_id,
-                f"{converter_name} created {result_path.name}",
-                state=QueueState.RUNNING,
-            )
-            self._set_status(
-                f"Status: {chapter_display} • {converter_name} created {result_path.name}"
-            )
-
-        return success
 
     def _on_download_task_done(self, queue_id: int, future: Future[None]) -> None:
         self._chapter_futures.pop(queue_id, None)
