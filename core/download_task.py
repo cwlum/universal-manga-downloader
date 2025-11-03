@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 
 from config import CONFIG
 from core.queue_manager import QueueState
-from plugins.base import ChapterMetadata, ParsedChapter, PluginManager
+from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, compose_chapter_name
 from utils.file_utils import collect_image_files, determine_file_extension, ensure_directory
 from utils.http_client import ScraperPool
 
@@ -210,7 +210,8 @@ class DownloadTask:
         base_dir = self.resolve_download_dir()
         if not base_dir:
             return None
-        download_candidate = os.path.join(base_dir, f"{title}_{chapter}")
+        folder_name = compose_chapter_name(title, chapter)
+        download_candidate = os.path.join(base_dir, folder_name)
         return ensure_directory(download_candidate)
 
     def _download_images(

@@ -73,7 +73,7 @@ pytest
 - **`core/queue_manager.py`**: Thread-safe download queue management
 
 ### Services
-- **`services/bato_service.py`**: Web scraping for Bato.to search and series info
+- **`services/bato_service.py` / `services/mangadex_service.py`**: Site-specific search, series metadata, and chapter helpers (Bato.to + MangaDex)
 
 ### Plugin System
 - **`plugins/base.py`**: Plugin infrastructure (loaders, managers, base classes)
@@ -163,7 +163,7 @@ pytest
            metadata: ChapterMetadata,
        ) -> Path | None:
            # Create EPUB file from images
-           output_path = output_dir / f"{metadata['title']}_{metadata['chapter']}.epub"
+           output_path = output_dir / f"{metadata['title']} - {metadata['chapter']}.epub"
            # ... EPUB creation logic ...
            return output_path
    ```

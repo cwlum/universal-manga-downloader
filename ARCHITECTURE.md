@@ -56,6 +56,16 @@ Scraping and search functionality for Bato.to:
 
 - **Dependencies**: Uses `cloudscraper` for Cloudflare bypass
 
+#### `services/mangadex_service.py`
+Thin API client for MangaDex chapters:
+
+- **Responsibilities**:
+  - Request chapter metadata via the official REST API
+  - Resolve image server URLs and file lists
+  - Provide sanitized data structures for parser plugins
+
+- **Dependencies**: Uses `requests` with configurable timeouts
+
 ### Layer 4: Plugin System
 
 #### `plugins/base.py`
@@ -75,6 +85,7 @@ Plugin infrastructure:
 
 #### Parser Plugins
 - `bato_parser.py`: Parses Bato.to chapter pages
+- `mangadex_parser.py`: Retrieves MangaDex chapter images via the API
 - Additional parsers can be added by subclassing `BasePlugin`
 
 #### Converter Plugins
@@ -103,7 +114,7 @@ Centralized configuration:
 - **Config Classes** (frozen dataclasses):
   - `UIConfig`: Window dimensions and timing
   - `DownloadConfig`: Worker limits and network timeouts
-  - `ServiceConfig`: External service endpoints
+  - `ServiceConfig`: External service endpoints (Bato.to + MangaDex)
   - `PDFConfig`: PDF generation settings
   - `AppConfig`: Aggregates all configuration
 
@@ -115,16 +126,18 @@ Centralized configuration:
 
 ```
 User Input → MangaDownloader (UI)
-           → BatoService.search_manga()
+           → Selected service (`BatoService` / `MangaDexService`).search_manga()
            → HTTP Request + HTML Parsing
            → List[SearchResult]
            → Display in UI
 ```
 
+Only parser plugins enabled under **Settings → Plugins** appear as selectable search providers.
+
 ### Series Info Workflow
 
 ```
-Series URL → BatoService.get_series_info()
+Series URL → Selected service (`BatoService` / `MangaDexService`).get_series_info()
            → Parse title, description, attributes, chapters
            → Display in UI
            → User selects chapters

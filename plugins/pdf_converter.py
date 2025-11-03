@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .base import BaseConverter, ChapterMetadata
+from .base import BaseConverter, ChapterMetadata, compose_chapter_name
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,8 @@ class PDFConverter(BaseConverter):
             logger.warning("PDF converter received no images for %s", metadata.get("title", "chapter"))
             return None
 
-        pdf_path = output_dir / f"{metadata['title']}_{metadata['chapter']}{self.get_output_extension()}"
+        base_name = compose_chapter_name(metadata.get("title"), metadata.get("chapter"))
+        pdf_path = output_dir / f"{base_name}{self.get_output_extension()}"
         images: list[Image.Image] = []
         try:
             for file_path in image_files:

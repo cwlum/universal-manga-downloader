@@ -57,6 +57,13 @@ class ServiceConfig:
     bato_search_path: str = "/search"
     bato_max_search_pages: int = 3
 
+    # MangaDex service
+    mangadex_api_base: str = "https://api.mangadex.org"
+    mangadex_site_base: str = "https://mangadex.org"
+    mangadex_search_limit: int = 20
+    mangadex_max_chapter_pages: int = 5
+    mangadex_languages: tuple[str, ...] = ("en",)
+
 
 @dataclass(frozen=True)
 class PDFConfig:
