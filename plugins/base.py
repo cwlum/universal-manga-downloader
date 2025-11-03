@@ -62,10 +62,33 @@ class BasePlugin(ABC):
         """Return a filesystem-friendly representation of ``name``."""
 
         import re
+        from pathlib import PurePath
 
-        sanitized = re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
-        sanitized = re.sub(r"_{3,}", "__", sanitized)
-        return sanitized.strip("_")
+        candidate = name.replace(":", " - ")
+        candidate = candidate.replace("\n", " ").replace("\r", " ")
+        candidate = re.sub(r"[\\/*?\"<>|]", " ", candidate)
+        candidate = candidate.replace("_", " ")
+        candidate = re.sub(r"\s+", " ", candidate)
+        candidate = re.sub(r"\s*-\s*", " - ", candidate)
+        candidate = re.sub(r"-{2,}", "-", candidate)
+        sanitized = candidate.strip(" .")
+        if not sanitized:
+            return "item"
+
+        # Windows reserved filenames must not be used without a suffix.
+        reserved = {
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            *(f"COM{i}" for i in range(1, 10)),
+            *(f"LPT{i}" for i in range(1, 10)),
+        }
+        upper_name = PurePath(sanitized).name.upper()
+        if upper_name in reserved:
+            sanitized = f"{sanitized} -"
+
+        return sanitized
 
 
 class BaseConverter(ABC):
@@ -301,10 +324,22 @@ class PluginManager:
         self._records.clear()
         self._record_index.clear()
 
+
+def compose_chapter_name(title: str | None, chapter: str | None) -> str:
+    """Return a consistent human-friendly chapter label."""
+
+    parts = [part.strip() for part in (title, chapter) if part and part.strip()]
+    if not parts:
+        return "Chapter"
+    label = " - ".join(parts)
+    return label.strip(" -")
+
+
 __all__ = [
     "BaseConverter",
     "BasePlugin",
     "ChapterMetadata",
+    "compose_chapter_name",
     "ParsedChapter",
     "PluginLoader",
     "PluginManager",
