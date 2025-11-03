@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.1.5-orange)
+![Version](https://img.shields.io/badge/version-1.2.0-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--02-informational)
 
@@ -41,6 +41,8 @@ The download directory, chapter workers, and image workers live together under t
 -   ✅ **Multi-Threaded Downloads**: Adjust chapter and image worker counts to shorten download times on fast connections.
 -   ✅ **Custom Download Folder**: Save chapters anywhere—no more being locked to your system Downloads directory.
 -   ✅ **Bato.to Search & Chapter Explorer**: Search the catalog, review series info, and select chapters to pre-fill the downloader with a single click.
+-   ✅ **Dual Search Providers**: Enable Bato.to or MangaDex in Settings → Plugins, then swap between them in the Browser tab to keep searching even if one site goes down.
+-   ✅ **MangaDex Chapter Support**: Paste any MangaDex chapter URL and let the built-in plugin pull images directly from the official API.
 -   ✅ **Plugin Output Formats**: Ships with PDF and CBZ converters and makes it trivial to ship your own (EPUB, plain images, etc.).
 -   ✅ **Smart Folder Organization**: Creates folders named after the manga title and chapter.
 -   ✅ **Advanced Web Scraping**: Uses `cloudscraper` to bypass anti-bot protections like Cloudflare.
@@ -61,12 +63,31 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 ## How to Use: Quick Start
 
 #### Step 1: Install the Tool
-Open your terminal or command prompt and run the following command to install the tool and its dependencies:
+Pick the workflow that fits your setup:
 
-```bash
-pip install .
-```
-*Note: If you have multiple Python versions, you might need to use `pip3`.*
+- **Option A (recommended)** – install with **pipx** so `umd` is available system-wide but still isolated:
+
+  ```bash
+  pipx install universal-manga-downloader
+  ```
+
+  Working from the repo and want the bleeding edge? Point pipx at the local path instead:
+
+  ```bash
+  pipx install /path/to/universal-manga-downloader
+  ```
+
+- **Option B** – create a virtual environment for development and install in editable mode:
+
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  pip install -e .
+  ```
+
+  (On Windows, replace the `source` line with `.venv\Scripts\activate`.)
+
+If your system Python is “externally managed” (PEP 668) and rejects direct installs, use pipx or a virtual environment instead of `pip install` at the global level.
 
 #### Step 2: Launch the Application
 Once the installation is complete, you can run the application from any directory by simply typing:
@@ -75,7 +96,28 @@ Once the installation is complete, you can run the application from any director
 umd
 ```
 
+Need a quick health check before launching? Try:
+
+```bash
+umd --doctor
+```
+
+For verbose logging, append `--log-level debug`.
+
+To upgrade to the latest release on demand, run:
+
+```bash
+umd --auto-update
+```
+
 The GUI window will appear, and you can start downloading manga.
+
+### Handy CLI options
+- `umd --version` — print the currently installed release.
+- `umd --doctor` — verify Python, Tkinter, and required libraries.
+- `umd --auto-update` — upgrade to the latest published package before launching.
+- `umd --log-level debug` — surface verbose logs (useful when debugging).
+- `umd --no-gui` — run validation only; ideal for CI or scripted checks.
 
 #### Step 3: Using the Application
 1.  In the **Browser** tab, type a title into **Search Manga** and press `Enter`, or double-click a result to load its synopsis and chapter list automatically.
@@ -90,7 +132,7 @@ The GUI window will appear, and you can start downloading manga.
 
 See **[DEVELOPMENT.md](DEVELOPMENT.md)** for environment setup, linting, and type-checking instructions before contributing changes. Refer to **[PLUGINS.md](PLUGINS.md)** for the full plugin specification, discovery rules, and example implementations. Check out **[ARCHITECTURE.md](ARCHITECTURE.md)** to understand the system design.
 
-Universal Manga Downloader 1.1.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
+Universal Manga Downloader 1.2.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
 
 ### Adding a Parser Plugin
 
@@ -121,11 +163,14 @@ Once enabled from the Settings tab, your plugin will appear in the GUI and parti
 
 ---
 
-## Troubleshooting
+## Troubleshooting & Common Pitfalls
 
--   **"No suitable parser found"**: This means the URL is from a website or a page layout that is not yet supported.
--   **Window flashes and disappears**: Check the terminal for error messages.
--   **Download fails**: Check your internet connection and the URL.
+- **`ERROR: externally-managed-environment` when installing** – macOS Homebrew Python enforces PEP 668. Install with `pipx install universal-manga-downloader`, or create a venv and run `pip install -e .` inside it.
+- **`pip: command not found`** – call pip through Python: `python3 -m pip install -e .` (or use pipx).
+- **`umd` still shows an old version** – you likely have an outdated symlink. If you used pipx, run `pipx uninstall universal-manga-downloader` followed by `pipx install /path/to/universal-manga-downloader`, or delete `~/.local/bin/umd` before reinstalling.
+- **GUI fails to open / crashes immediately** – run `umd --doctor` to confirm Tkinter is installed and accessible; on Linux ensure the system has an X server running.
+- **"No suitable parser found" in the queue** – the URL is either unsupported or the site changed its layout. Enable the correct parser plugin in Settings → Plugins and try again.
+- **Download errors** – double-check network connectivity, confirm the site is reachable in a browser, and look at the terminal for detailed logs (use `--log-level debug` if needed).
 
 ## License
 

@@ -1,6 +1,6 @@
 [project]
 name = "universal-manga-downloader"
-version = "0.1.0"
+version = "1.2.0"
 description = "A universal manga downloader."
 dependencies = [
     "requests",
@@ -11,10 +11,10 @@ dependencies = [
 ]
 
 [project.scripts]
-umd = "manga_downloader:main"
+umd = "umd_cli:main"
 
 [tool.setuptools]
-py-modules = ["manga_downloader", "config"]
+py-modules = ["manga_downloader", "config", "umd_cli"]
 packages = ["core", "parsers", "plugins", "services", "utils"]
 
 [tool.ruff]
