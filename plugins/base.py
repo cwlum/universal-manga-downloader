@@ -248,6 +248,11 @@ class PluginManager:
             return list(self._records)
         return [record for record in self._records if record.plugin_type is plugin_type]
 
+    def get_record(self, plugin_type: PluginType, name: str) -> PluginRecord | None:
+        """Return plugin metadata for the specified name, if present."""
+
+        return self._record_index.get((plugin_type, name))
+
     def iter_enabled_parsers(self) -> Iterator[BasePlugin]:
         """Yield active parser plugins."""
 

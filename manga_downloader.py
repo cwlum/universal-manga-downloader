@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from functools import partial
 from numbers import Real
 from tkinter import filedialog, ttk
-from typing import TypedDict
+from typing import Any, TypedDict, cast
 from urllib.parse import urlparse
 
 import requests  # type: ignore[import-untyped]
@@ -23,7 +23,7 @@ from config import CONFIG
 from core.download_task import DownloadTask, DownloadUIHooks
 from core.queue_manager import QueueManager, QueueState
 from plugins.base import PluginManager, PluginType
-from services import BatoService
+from services import BatoService, MangaDexService
 from utils.file_utils import ensure_directory, get_default_download_root
 from utils.http_client import ScraperPool
 
@@ -57,6 +57,7 @@ class SearchResult(TypedDict, total=False):
     title: str
     url: str
     subtitle: str
+    provider: str
 
 
 class SeriesChapter(TypedDict, total=False):
@@ -67,12 +68,28 @@ class SeriesChapter(TypedDict, total=False):
     label: str
 
 
-def configure_logging() -> None:
+def configure_logging(level: int | str | None = None) -> None:
     """Configure a sensible default logger for the application."""
 
-    if logging.getLogger().handlers:
-        return
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+    root_logger = logging.getLogger()
+
+    resolved_level: int | None
+    if isinstance(level, str):
+        resolved_level = logging.getLevelName(level.upper())
+        if not isinstance(resolved_level, int):
+            resolved_level = logging.INFO
+    else:
+        resolved_level = level
+
+    if not root_logger.handlers:
+        logging.basicConfig(
+            level=resolved_level or logging.INFO,
+            format="%(levelname)s:%(name)s:%(message)s",
+        )
+    elif resolved_level is not None:
+        root_logger.setLevel(resolved_level)
+        for handler in root_logger.handlers:
+            handler.setLevel(resolved_level)
 
 
 configure_logging()
@@ -90,7 +107,19 @@ class MangaDownloader(tk.Tk):
 
         sv_ttk.set_theme("dark")
 
-        self.bato_service = BatoService()
+        self.search_services: dict[str, Any] = {
+            "Bato": BatoService(),
+            "MangaDex": MangaDexService(),
+        }
+        self.provider_plugin_map: dict[str, tuple[PluginType, str]] = {
+            "Bato": (PluginType.PARSER, "Bato"),
+            "MangaDex": (PluginType.PARSER, "MangaDex"),
+        }
+        default_provider = next(iter(self.search_services))
+        self.search_provider_var = tk.StringVar(value=default_provider)
+        self.series_provider: str | None = None
+        self._search_results_provider: str | None = None
+        self._available_providers: list[str] = []
         self.plugin_manager = PluginManager()
         self.plugin_manager.load_plugins()
         self.scraper_pool = ScraperPool(CONFIG.download.scraper_pool_size)
@@ -140,6 +169,7 @@ class MangaDownloader(tk.Tk):
         self._bind_mousewheel_area(self.chapters_listbox)
         self._bind_mousewheel_area(self.queue_canvas)
         self._bind_mousewheel_area(self.queue_items_container, target=self.queue_canvas)
+        self._refresh_provider_options()
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self._ensure_chapter_executor(force_reset=True)
@@ -166,6 +196,17 @@ class MangaDownloader(tk.Tk):
 
         search_entry_frame = ttk.Frame(search_frame)
         search_entry_frame.pack(fill="x", padx=10, pady=10)
+
+        ttk.Label(search_entry_frame, text="Source:").pack(side="left", padx=(0, 8))
+        self.provider_combo = ttk.Combobox(
+            search_entry_frame,
+            state="readonly",
+            values=tuple(self.search_services.keys()),
+            textvariable=self.search_provider_var,
+            width=12,
+        )
+        self.provider_combo.pack(side="left", padx=(0, 12))
+        self.provider_combo.bind("<<ComboboxSelected>>", self._on_provider_changed)
 
         self.search_entry = ttk.Entry(search_entry_frame)
         self.search_entry.pack(side="left", fill="x", expand=True)
@@ -385,6 +426,29 @@ class MangaDownloader(tk.Tk):
         self.status_label = ttk.Label(status_bar, text="Status: Ready")
         self.status_label.pack(anchor="w", padx=4, pady=(0, 4))
 
+    def _refresh_provider_options(self) -> None:
+        """Update search provider options based on enabled parser plugins."""
+
+        available = [provider for provider in self.search_services if self._is_provider_enabled(provider)]
+        self._available_providers = available
+
+        if not hasattr(self, "provider_combo"):
+            return
+
+        if not available:
+            self.provider_combo.configure(values=(), state="disabled")
+            self.search_button.config(state="disabled")
+            self.search_provider_var.set("")
+            self.search_results_listbox.delete(0, tk.END)
+            self.chapters_listbox.delete(0, tk.END)
+            self._update_text_widget(self.series_info_text, "Enable a parser plugin to search.")
+            return
+
+        self.provider_combo.configure(values=tuple(available), state="readonly")
+        if self.search_provider_var.get() not in available:
+            self.search_provider_var.set(available[0])
+        self.search_button.config(state="normal")
+
     def _build_plugin_settings(self) -> None:
         """Render plugin toggle controls within the settings tab."""
 
@@ -432,33 +496,81 @@ class MangaDownloader(tk.Tk):
         self.plugin_manager.set_enabled(plugin_type, plugin_name, enabled)
         status = "enabled" if enabled else "disabled"
         self._set_status(f"Status: Plugin {plugin_name} {status}.")
+        if plugin_type is PluginType.PARSER:
+            self._refresh_provider_options()
 
     # --- Search Handlers ---
+    def _is_provider_enabled(self, provider: str) -> bool:
+        mapping = self.provider_plugin_map.get(provider)
+        if mapping is None:
+            return True
+        plugin_type, plugin_name = mapping
+        record = self.plugin_manager.get_record(plugin_type, plugin_name)
+        return record is not None and record.enabled
+
+    def _on_provider_changed(self, _event=None):
+        provider_key = self._normalize_provider(self.search_provider_var.get())
+        self.search_provider_var.set(provider_key)
+        self.series_provider = None
+        self._search_results_provider = None
+        self.search_results = []
+        self.series_data = None
+        self.series_chapters = []
+        self.search_results_listbox.delete(0, tk.END)
+        self.chapters_listbox.delete(0, tk.END)
+        if hasattr(self, "series_url_var"):
+            self.series_url_var.set("")
+        self._update_text_widget(self.series_info_text, "Select a series to load.")
+        self.status_label.config(text=f"Status: Switched to {provider_key}.")
+
     def start_search_thread(self):
         query = self.search_entry.get().strip()
         if not query:
             self.status_label.config(text="Status: Enter a search query.")
             return
 
+        if not self._available_providers:
+            self.status_label.config(text="Status: Enable a parser plugin before searching.")
+            return
+
+        provider_key = self._normalize_provider(self.search_provider_var.get())
+        self.search_provider_var.set(provider_key)
+
+        if provider_key not in self._available_providers:
+            self.status_label.config(text="Status: Selected provider is disabled.")
+            return
+
         self.search_button.config(state="disabled")
-        self.status_label.config(text=f'Status: Searching for "{query}"...')
-        thread = threading.Thread(target=self._perform_search, args=(query,), daemon=True)
+        self.status_label.config(text=f'Status: Searching {provider_key} for "{query}"...')
+        thread = threading.Thread(target=self._perform_search, args=(query, provider_key), daemon=True)
         thread.start()
 
-    def _perform_search(self, query):
+    def _perform_search(self, query, provider_key):
         try:
-            results = self.bato_service.search_manga(query)
+            provider_key, service = self._resolve_service(provider_key)
+        except RuntimeError as error:
+            message = f"Status: {error}"
+            self.after(0, lambda msg=message: self._on_search_failure(msg))
+            return
+        try:
+            results = service.search_manga(query)
         except requests.RequestException as error:
-            message = f"Status: Search failed - {error}"
+            message = f"Status: {provider_key} search failed - {error}"
             self.after(0, lambda msg=message: self._on_search_failure(msg))
         except Exception as error:  # noqa: BLE001 - surface unexpected failures
-            logger.exception("Search workflow failed for query %s", query)
-            message = f"Status: Search error - {error}"
+            logger.exception("Search workflow failed for query %s with provider %s", query, provider_key)
+            message = f"Status: {provider_key} search error - {error}"
             self.after(0, lambda msg=message: self._on_search_failure(msg))
         else:
-            self.after(0, lambda: self._on_search_success(results, query))
+            self.after(0, lambda: self._on_search_success(results, query, provider_key))
 
-    def _on_search_success(self, results, query):
+    def _on_search_success(self, results, query, provider_key):
+        for result in results:
+            if isinstance(result, dict) and "provider" not in result:
+                result["provider"] = provider_key
+
+        self._search_results_provider = provider_key
+        self.series_provider = provider_key
         self.search_results = results
         self.search_results_listbox.delete(0, tk.END)
         for result in results:
@@ -468,9 +580,11 @@ class MangaDownloader(tk.Tk):
             self.search_results_listbox.insert(tk.END, display)
 
         if results:
-            self.status_label.config(text=f'Status: Found {len(results)} result(s) for "{query}".')
+            self.status_label.config(
+                text=f'Status: Found {len(results)} {provider_key} result(s) for "{query}".'
+            )
         else:
-            self.status_label.config(text=f'Status: No results for "{query}".')
+            self.status_label.config(text=f'Status: No {provider_key} results for "{query}".')
 
         self.search_button.config(state="normal")
 
@@ -487,6 +601,11 @@ class MangaDownloader(tk.Tk):
             series_url = self.search_results[index].get("url", "")
             if series_url:
                 self.series_url_var.set(series_url)
+            provider = self.search_results[index].get("provider")
+            if isinstance(provider, str):
+                self.series_provider = provider
+                if provider in self.search_services:
+                    self.search_provider_var.set(provider)
 
     def on_search_double_click(self, event):
         self.on_search_select(event)
@@ -498,7 +617,13 @@ class MangaDownloader(tk.Tk):
             return ""
         index = selection[0]
         if 0 <= index < len(self.search_results):
-            return self.search_results[index].get("url", "")
+            result = self.search_results[index]
+            provider = result.get("provider")
+            if isinstance(provider, str):
+                self.series_provider = provider
+                if provider in self.search_services:
+                    self.search_provider_var.set(provider)
+            return result.get("url", "")
         return ""
 
     # --- Series Handlers ---
@@ -511,37 +636,60 @@ class MangaDownloader(tk.Tk):
                 return
             self.series_url_var.set(series_url)
 
+        provider_key = self._determine_series_provider(series_url)
+        self.series_provider = provider_key
+        if provider_key in self.search_services:
+            self.search_provider_var.set(provider_key)
+
+        if provider_key not in self._available_providers:
+            self.status_label.config(text="Status: Enable the corresponding parser plugin to load this series.")
+            self.load_series_button.config(state="normal")
+            return
+
         self.load_series_button.config(state="disabled")
-        self.status_label.config(text="Status: Fetching series info...")
-        thread = threading.Thread(target=self._perform_series_fetch, args=(series_url,), daemon=True)
+        self.status_label.config(text=f"Status: Fetching {provider_key} series info...")
+        thread = threading.Thread(
+            target=self._perform_series_fetch,
+            args=(series_url, provider_key),
+            daemon=True,
+        )
         thread.start()
 
-    def _perform_series_fetch(self, series_url):
+    def _perform_series_fetch(self, series_url, provider_key):
         try:
-            data = self.bato_service.get_series_info(series_url)
+            provider_key, service = self._resolve_service(provider_key)
+        except RuntimeError as error:
+            message = f"Status: {error}"
+            self.after(0, lambda msg=message: self._on_series_failure(msg))
+            return
+        try:
+            data = service.get_series_info(series_url)
         except requests.RequestException as error:
-            message = f"Status: Failed to fetch series info - {error}"
+            message = f"Status: {provider_key} series fetch failed - {error}"
             self.after(0, lambda msg=message: self._on_series_failure(msg))
         except Exception as error:  # noqa: BLE001
-            logger.exception("Failed to process series info for %s", series_url)
-            message = f"Status: Series parsing error - {error}"
+            logger.exception("Failed to process series info for %s using provider %s", series_url, provider_key)
+            message = f"Status: {provider_key} series parsing error - {error}"
             self.after(0, lambda msg=message: self._on_series_failure(msg))
         else:
-            self.after(0, lambda: self._on_series_success(data))
+            self.after(0, lambda: self._on_series_success(data, provider_key))
 
-    def _on_series_success(self, data):
-        self.series_data = data
-        self.series_chapters = data.get("chapters", []) or []
+    def _on_series_success(self, data, provider_key):
+        payload = data if isinstance(data, dict) else {}
+        payload.setdefault("provider", provider_key)
+        self.series_data = payload
+        self.series_provider = provider_key
+        self.series_chapters = payload.get("chapters", []) or []
 
-        title = data.get("title") or "Unknown Title"
+        title = payload.get("title") or "Unknown Title"
         self.series_title_var.set(title)
 
         info_lines = []
-        description = data.get("description")
+        description = payload.get("description")
         if description:
             info_lines.append(description)
 
-        attributes = data.get("attributes") or {}
+        attributes = payload.get("attributes") or {}
         for label, value in attributes.items():
             if isinstance(value, Iterable) and not isinstance(value, str | bytes | dict):
                 value_text = ", ".join(str(item) for item in value)
@@ -562,7 +710,9 @@ class MangaDownloader(tk.Tk):
             if first_url:
                 self.url_var.set(first_url)
 
-        self.status_label.config(text=f"Status: Loaded {len(self.series_chapters)} chapter(s).")
+        self.status_label.config(
+            text=f"Status: Loaded {len(self.series_chapters)} {provider_key} chapter(s)."
+        )
         self.load_series_button.config(state="normal")
 
     def _on_series_failure(self, message):
@@ -1068,6 +1218,47 @@ class MangaDownloader(tk.Tk):
         tail = os.path.basename(parsed.path.rstrip("/"))
         return tail or url
 
+    def _normalize_provider(self, provider_key: str | None) -> str:
+        available = self._available_providers or [
+            provider for provider in self.search_services if self._is_provider_enabled(provider)
+        ]
+        if provider_key in available:
+            return cast(str, provider_key)
+        if available:
+            return available[0]
+        return next(iter(self.search_services))
+
+    def _resolve_service(self, provider_key: str | None) -> tuple[str, Any]:
+        normalized = self._normalize_provider(provider_key)
+        candidates = [normalized] + [provider for provider in self._available_providers if provider != normalized]
+        for provider in candidates:
+            service = self.search_services.get(provider)
+            if service is not None and self._is_provider_enabled(provider):
+                return provider, service
+        raise RuntimeError("No enabled search providers are available.")
+
+    def _provider_from_url(self, url: str) -> str | None:
+        if not url:
+            return None
+        host = urlparse(url).netloc.lower()
+        if "mangadex" in host:
+            return "MangaDex"
+        if "bato" in host:
+            return "Bato"
+        return None
+
+    def _determine_series_provider(self, series_url: str) -> str:
+        if self.series_provider in self.search_services and self._is_provider_enabled(cast(str, self.series_provider)):
+            return cast(str, self.series_provider)
+        url_provider = self._provider_from_url(series_url)
+        if url_provider in self.search_services and self._is_provider_enabled(cast(str, url_provider)):
+            return cast(str, url_provider)
+        if self._search_results_provider in self.search_services and self._is_provider_enabled(
+            cast(str, self._search_results_provider)
+        ):
+            return cast(str, self._search_results_provider)
+        return self._normalize_provider(self.search_provider_var.get())
+
     def _register_queue_item(
         self,
         label: str | None,
@@ -1344,9 +1535,10 @@ class MangaDownloader(tk.Tk):
         self.plugin_manager.shutdown()
         self.destroy()
 
-def main() -> None:
+def main(log_level: int | str | None = None) -> None:
     """Entrypoint to launch the GUI application."""
 
+    configure_logging(log_level)
     app = MangaDownloader()
     app.mainloop()
 
