@@ -65,14 +65,14 @@ Open your "Terminal" or "Command Prompt" and type `python3 --version` (or `pytho
 #### Step 1: Install the Tool
 Pick the workflow that fits your setup:
 
-- **Option A (recommended)** – install with **pipx** so `umd` is available system-wide but still isolated:
+- **Option A (recommended)** – install with **pipx** from the local repository so `umd` is available system-wide but still isolated:
 
+  First, clone this repository to your local machine. Then, navigate your terminal into the repository's directory and run:
   ```bash
-  pipx install universal-manga-downloader
+  pipx install .
   ```
 
-  Working from the repo and want the bleeding edge? Point pipx at the local path instead:
-
+  Alternatively, you can point pipx to the full path of the repository from any directory:
   ```bash
   pipx install /path/to/universal-manga-downloader
   ```
@@ -171,6 +171,12 @@ Once enabled from the Settings tab, your plugin will appear in the GUI and parti
 - **GUI fails to open / crashes immediately** – run `umd --doctor` to confirm Tkinter is installed and accessible; on Linux ensure the system has an X server running.
 - **"No suitable parser found" in the queue** – the URL is either unsupported or the site changed its layout. Enable the correct parser plugin in Settings → Plugins and try again.
 - **Download errors** – double-check network connectivity, confirm the site is reachable in a browser, and look at the terminal for detailed logs (use `--log-level debug` if needed).
+
+## Disclaimer
+
+Please read the full [Disclaimer](DISCLAIMER.md) before using this software. Users are solely responsible for their actions and must comply with all applicable copyright laws.
+
+---
 
 ## License
 

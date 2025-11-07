@@ -69,7 +69,6 @@ class BasePlugin(ABC):
         candidate = re.sub(r"[\\/*?\"<>|]", " ", candidate)
         candidate = candidate.replace("_", " ")
         candidate = re.sub(r"\s+", " ", candidate)
-        candidate = re.sub(r"\s*-\s*", " - ", candidate)
         candidate = re.sub(r"-{2,}", "-", candidate)
         sanitized = candidate.strip(" .")
         if not sanitized:
