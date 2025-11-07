@@ -161,7 +161,7 @@ If tests fail:
 
 ## Getting Help
 
-- Open an issue on GitHub for bugs or feature requests
+- Open an issue on GitLab for bugs or feature requests
 - Tag issues with `question` for help
 - Check existing issues before creating new ones
 - See **[ONBOARDING.md](ONBOARDING.md)** for common developer tasks

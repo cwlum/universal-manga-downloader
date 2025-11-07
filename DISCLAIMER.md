@@ -20,6 +20,10 @@ The developers of Universal Manga Downloader are not affiliated with, associated
 
 This software is provided "as-is," without any warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
 
-## GitHub Terms of Service
+## GitLab Terms of Service
 
-Use of this software must comply with the GitHub Terms of Service. This project is hosted on GitHub as a software development project and is not intended to be a service for distributing copyrighted material. Any use of this software that violates the GitHub Terms of Service is strictly prohibited. The developers are not responsible for any violations of these terms by the end-users.
+Use of this software must comply with the GitLab Terms of Service. This project is hosted on GitLab as a software development project and is not intended to be a service for distributing copyrighted material. Any use of this software that violates the GitLab Terms of Service is strictly prohibited. The developers are not responsible for any violations of these terms by the end-users.
+
+## Platform Migration
+
+This project was previously hosted on GitHub but has been migrated to GitLab to align with our commitment to open-source values and community-driven development. GitLab's platform better supports our educational and archival mission while maintaining transparency and user freedom.

@@ -17,8 +17,8 @@ Before you begin, ensure you have:
 
 ```bash
 # Clone the repository
-git clone https://github.com/cwlum/bato-downloader.git
-cd bato-downloader
+git clone https://gitlab.com/cwlum/universal-manga-downloader.git
+cd universal-manga-downloader
 
 # Create a virtual environment
 python3 -m venv venv
@@ -191,7 +191,7 @@ pytest
    git push origin fix/issue-123-description
    ```
 
-5. **Open a Pull Request** on GitHub
+5. **Open a Merge Request** on GitLab
 
 ### Task 4: Add Configuration
 
@@ -348,8 +348,8 @@ print(result)
 
 - **Documentation**: Read `ARCHITECTURE.md` for design details
 - **Plugin Guide**: See `PLUGINS.md` for plugin development
-- **Issues**: Check GitHub Issues for known bugs and feature requests
-- **Code Review**: Open a draft PR for early feedback
+- **Issues**: Check GitLab Issues for known bugs and feature requests
+- **Code Review**: Open a draft MR (Merge Request) for early feedback
 
 ## Next Steps
 
