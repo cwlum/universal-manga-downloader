@@ -1,79 +1,70 @@
 # GitLab CI/CD Configuration for Universal Manga Downloader
 # Documentation: https://docs.gitlab.com/ee/ci/
 
-# Define stages (pipeline phases)
 stages:
   - lint
   - test
   - build
 
-# Default settings for all jobs
 default:
   image: python:3.11
   before_script:
     - python --version
     - pip install --upgrade pip
     - pip install -e .
-    - pip install ruff mypy pytest
 
-# Lint job - Check code quality
-lint:ruff:
+# Lint job - Check code quality with Ruff
+"lint:ruff":
   stage: lint
   script:
+    - pip install ruff
     - echo "Running Ruff linter..."
     - ruff check .
   allow_failure: false
 
-# Type checking job
-lint:mypy:
+# Type checking job with MyPy
+"lint:mypy":
   stage: lint
   script:
+    - pip install mypy
     - echo "Running MyPy type checker..."
     - mypy manga_downloader.py config.py umd_cli.py core/ parsers/ plugins/ services/ utils/ --no-error-summary || true
-  allow_failure: true  # Type checking can be strict
+  allow_failure: true
 
 # Test job - Run pytest
-test:pytest:
+"test:pytest":
   stage: test
   script:
+    - pip install pytest
     - echo "Running tests..."
     - pytest tests/ -v --tb=short
-  coverage: '/(?i)total.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
-  artifacts:
-    when: always
-    reports:
-      junit: report.xml
-    expire_in: 1 week
   allow_failure: false
 
-# Build job - Create distribution
-build:package:
+# Build job - Create distribution package
+"build:package":
   stage: build
   script:
-    - echo "Building package..."
     - pip install build
+    - echo "Building package..."
     - python -m build
   artifacts:
     paths:
       - dist/
     expire_in: 1 month
-  only:
-    - main
-    - tags
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_TAG
 
-# Optional: Build job for releases only
-build:release:
+# Build job for tagged releases only
+"build:release":
   stage: build
   script:
-    - echo "Creating release build..."
     - pip install build
+    - echo "Creating release build..."
     - python -m build
-    - echo "Build complete for version $(python -c 'import tomllib; print(tomllib.load(open(\"pyproject.toml\", \"rb\"))[\"project\"][\"version\"])')"
   artifacts:
     paths:
       - dist/
     name: "universal-manga-downloader-$CI_COMMIT_TAG"
-  only:
-    - tags
-  except:
-    - branches
+  rules:
+    - if: $CI_COMMIT_TAG
