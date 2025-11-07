@@ -36,5 +36,5 @@ def test_parse_modern_script_payload() -> None:
         "https://example.com/001.webp",
         "https://example.com/002.webp",
     ]
-    assert result["title"] == "OMORI__Official"
+    assert result["title"] == "OMORI [Official]"
     assert result["chapter"] == "Ch.11"

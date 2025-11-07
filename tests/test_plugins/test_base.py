@@ -10,10 +10,10 @@ from plugins.base import BasePlugin, PluginLoader, PluginManager, PluginType
 def test_sanitize_filename() -> None:
     """BasePlugin provides reusable filename sanitization."""
 
-    assert BasePlugin.sanitize_filename("Chapter 1") == "Chapter_1"
-    assert BasePlugin.sanitize_filename("Chapter: 1 / Part 2") == "Chapter__1__Part_2"
+    assert BasePlugin.sanitize_filename("Chapter 1") == "Chapter 1"
+    assert BasePlugin.sanitize_filename("Chapter: 1 / Part 2") == "Chapter - 1 Part 2"
     assert BasePlugin.sanitize_filename("___Leading___") == "Leading"
-    assert BasePlugin.sanitize_filename("Valid_Filename-123.txt") == "Valid_Filename-123.txt"
+    assert BasePlugin.sanitize_filename("Valid_Filename-123.txt") == "Valid Filename-123.txt"
 
 
 def test_plugin_manager_discovers_plugins() -> None:
