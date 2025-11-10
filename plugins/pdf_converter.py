@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image
 
 from config import CONFIG
+
 from .base import BaseConverter, ChapterMetadata, compose_chapter_name
 
 logger = logging.getLogger(__name__)

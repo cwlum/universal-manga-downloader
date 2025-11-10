@@ -332,7 +332,6 @@ class DownloadTask:
             retry_delay = CONFIG.download.retry_delay
 
             try:
-                last_error = None
                 for attempt in range(max_retries + 1):
                     try:
                         with session.get(
@@ -351,8 +350,7 @@ class DownloadTask:
                                         continue
                                     file_handler.write(chunk)
                         return index, True, None
-                    except (requests.RequestException, OSError, IOError) as exc:
-                        last_error = exc
+                    except (requests.RequestException, OSError) as exc:
                         if attempt < max_retries:
                             # Exponential backoff: 1s, 2s, 4s, ...
                             wait_time = retry_delay * (2 ** attempt)
@@ -366,10 +364,9 @@ class DownloadTask:
                                 "Failed to download image %d from %s after %d attempts: %s",
                                 index + 1, img_url, max_retries + 1, exc
                             )
-
                 # All retries exhausted
                 return index, False, img_url
-            except Exception as exc:  # noqa: BLE001 - protect thread from unexpected failures
+            except Exception:  # noqa: BLE001 - protect thread from unexpected failures
                 logger.exception("Unexpected error downloading image %d from %s", index + 1, img_url)
                 return index, False, img_url
             finally:
