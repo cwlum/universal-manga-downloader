@@ -47,7 +47,7 @@ class ScraperPool:
         """
 
         if self._closed:
-            raise RuntimeError("ScraperPool has been closed.")
+            raise RuntimeError("ScraperPool has been closed.") from None
 
         wait_time = timeout if timeout is not None else self._wait_timeout
 
@@ -76,7 +76,7 @@ class ScraperPool:
                     return scraper
                 except Empty:
                     if self._closed:
-                        raise RuntimeError("ScraperPool was closed while waiting")
+                        raise RuntimeError("ScraperPool was closed while waiting") from None
                     continue
 
             # Timeout expired - create transient scraper as fallback

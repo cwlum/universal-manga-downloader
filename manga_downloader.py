@@ -559,7 +559,7 @@ class MangaDownloader(tk.Tk):
             message = f"Status: {provider_key} search failed - Network error: {error}"
             logger.warning("Network error during search for %s: %s", query, error)
             self.after(0, lambda msg=message: self._on_search_failure(msg))
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as error:
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError):
             logger.exception("Data parsing error during search for %s with %s", query, provider_key)
             message = f"Status: {provider_key} search error - Invalid response format"
             self.after(0, lambda msg=message: self._on_search_failure(msg))
@@ -674,7 +674,7 @@ class MangaDownloader(tk.Tk):
             message = f"Status: {provider_key} series fetch failed - Network error: {error}"
             logger.warning("Network error fetching series %s: %s", series_url, error)
             self.after(0, lambda msg=message: self._on_series_failure(msg))
-        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as error:
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError):
             logger.exception("Data parsing error for series %s with %s", series_url, provider_key)
             message = f"Status: {provider_key} series parsing error - Invalid response format"
             self.after(0, lambda msg=message: self._on_series_failure(msg))

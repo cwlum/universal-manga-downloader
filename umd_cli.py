@@ -186,7 +186,7 @@ def _check_tkinter() -> bool:
         import tkinter as tk
     except ModuleNotFoundError as exc:
         print("  ✗ Tkinter module not found (GUI cannot start)")
-        print(f"     Install: apt-get install python3-tk  # Linux")
+        print("     Install: apt-get install python3-tk  # Linux")
         print(f"     Detail: {exc}")
         return False
 
@@ -197,7 +197,7 @@ def _check_tkinter() -> bool:
         root.destroy()
     except Exception as exc:  # noqa: BLE001 - platform-specific failures
         print("  ⚠️  Tkinter installed but display test failed")
-        print(f"     This may be normal in headless environments")
+        print("     This may be normal in headless environments")
         print(f"     Detail: {exc}")
         return False
 
@@ -238,7 +238,7 @@ def _check_disk_space() -> bool:
         free_bytes = get_free_disk_space(download_dir)
 
         if free_bytes < 0:
-            print(f"  ⚠️  Unable to determine free space")
+            print("  ⚠️  Unable to determine free space")
             return True  # Don't fail, just warn
 
         free_gb = free_bytes / (1024 ** 3)
@@ -246,7 +246,7 @@ def _check_disk_space() -> bool:
         print(f"  ✓ Free space: {free_gb:.2f} GB")
 
         if free_gb < 1:
-            print(f"  ⚠️  Less than 1 GB free - consider freeing up space")
+            print("  ⚠️  Less than 1 GB free - consider freeing up space")
 
         return True
     except Exception as exc:
@@ -258,7 +258,7 @@ def _check_download_dir() -> bool:
     """Check download directory accessibility."""
     print("\n[Download Directory]")
     try:
-        from utils.file_utils import get_default_download_root, ensure_directory
+        from utils.file_utils import ensure_directory, get_default_download_root
 
         download_dir = get_default_download_root()
         result = ensure_directory(download_dir)
@@ -272,11 +272,11 @@ def _check_download_dir() -> bool:
         # Check write permissions
         import tempfile
         try:
-            with tempfile.NamedTemporaryFile(dir=download_dir, delete=True) as tmp:
+            with tempfile.NamedTemporaryFile(dir=download_dir, delete=True):
                 pass
-            print(f"  ✓ Write permissions confirmed")
+            print("  ✓ Write permissions confirmed")
         except OSError:
-            print(f"  ✗ No write permission")
+            print("  ✗ No write permission")
             return False
 
         return True
