@@ -3,12 +3,12 @@
 ![Version](https://img.shields.io/badge/version-1.2.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--01--10-informational)
-[![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/cwlum/universal-manga-downloader)
-[![Pipeline](https://gitlab.com/cwlum/universal-manga-downloader/badges/main/pipeline.svg)](https://gitlab.com/cwlum/universal-manga-downloader/-/pipelines)
+[![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
+[![Pipeline](https://gitlab.com/lummuu/universal-manga-downloader/badges/main/pipeline.svg)](https://gitlab.com/lummuu/universal-manga-downloader/-/pipelines)
 
 An extensible, user-friendly GUI tool to download manga chapters from various websites and automatically convert them into rich digital archives.
 
-**🔗 Repository:** [https://gitlab.com/cwlum/universal-manga-downloader](https://gitlab.com/cwlum/universal-manga-downloader)
+**🔗 Repository:** [https://gitlab.com/lummuu/universal-manga-downloader](https://gitlab.com/lummuu/universal-manga-downloader)
 
 This tool is built on a **modular plugin engine**, making it adaptable to future website changes and expandable to support new sites or output formats without touching the core codebase.
 
