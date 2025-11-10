@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -19,10 +20,41 @@ def get_default_download_root() -> str:
 
 
 def sanitize_filename(name: str) -> str:
-    """Return a filesystem-friendly representation of a filename."""
-    sanitized = re.sub(r"[^a-zA-Z0-9_.-]", "_", name)
-    sanitized = re.sub(r"_{3,}", "__", sanitized)
-    return sanitized.strip("_")
+    """
+    Return a filesystem-friendly representation of a filename.
+
+    This implementation:
+    - Replaces colons with " - " for readability
+    - Removes only truly invalid filesystem characters: \\ / * ? " < > |
+    - Handles Windows reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+    - Preserves spaces and readable characters
+    - Collapses multiple spaces and dashes
+    """
+    candidate = name.replace(":", " - ")
+    candidate = candidate.replace("\n", " ").replace("\r", " ")
+    candidate = re.sub(r"[\\/*?\"<>|]", " ", candidate)
+    candidate = candidate.replace("_", " ")
+    candidate = re.sub(r"\s+", " ", candidate)
+    candidate = re.sub(r"-{2,}", "-", candidate)
+    sanitized = candidate.strip(" .")
+    if not sanitized:
+        return "item"
+
+    # Windows reserved filenames must not be used without a suffix.
+    reserved = {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{i}" for i in range(1, 10)),
+        *(f"LPT{i}" for i in range(1, 10)),
+    }
+    from pathlib import PurePath
+    upper_name = PurePath(sanitized).name.upper()
+    if upper_name in reserved:
+        sanitized = f"{sanitized} -"
+
+    return sanitized
 
 
 def determine_file_extension(img_url: str, response: requests.Response) -> str:
@@ -62,3 +94,75 @@ def ensure_directory(directory: str) -> str | None:
         return abs_dir
     except OSError:
         return None
+
+
+def get_free_disk_space(path: str) -> int:
+    """
+    Get available disk space in bytes for the given path.
+
+    Args:
+        path: Directory path to check (or any path on the target filesystem)
+
+    Returns:
+        Free space in bytes, or -1 if unable to determine
+    """
+    try:
+        # Ensure path exists or use parent directory
+        check_path = path
+        if not os.path.exists(check_path):
+            check_path = os.path.dirname(check_path) or "/"
+
+        # Get disk usage statistics
+        stat = shutil.disk_usage(check_path)
+        return stat.free
+    except (OSError, AttributeError):
+        return -1
+
+
+def estimate_chapter_size(num_images: int, avg_image_size_mb: float = 4.0) -> int:
+    """
+    Estimate download size in bytes for a chapter.
+
+    Args:
+        num_images: Number of images in the chapter
+        avg_image_size_mb: Average size per image in MB (default 4MB)
+
+    Returns:
+        Estimated size in bytes
+    """
+    if num_images <= 0:
+        return 0
+    # Add 20% buffer for conversions (PDF, CBZ)
+    estimated_bytes = int(num_images * avg_image_size_mb * 1024 * 1024 * 1.2)
+    return estimated_bytes
+
+
+def check_disk_space_sufficient(
+    directory: str,
+    required_bytes: int,
+    safety_margin_mb: int = 100,
+) -> tuple[bool, int, int]:
+    """
+    Check if there's sufficient disk space for download.
+
+    Args:
+        directory: Target download directory
+        required_bytes: Required space in bytes
+        safety_margin_mb: Safety margin in MB (default 100MB)
+
+    Returns:
+        Tuple of (is_sufficient, free_bytes, required_with_margin_bytes)
+    """
+    free_bytes = get_free_disk_space(directory)
+
+    # If we can't determine free space, assume it's sufficient
+    if free_bytes < 0:
+        return (True, -1, required_bytes)
+
+    # Add safety margin
+    safety_bytes = safety_margin_mb * 1024 * 1024
+    required_with_margin = required_bytes + safety_bytes
+
+    is_sufficient = free_bytes >= required_with_margin
+
+    return (is_sufficient, free_bytes, required_with_margin)

@@ -26,32 +26,40 @@ REQUIRED_MODULES: list[tuple[str, str]] = [
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="umd",
-        description="Universal Manga Downloader launcher and diagnostic tool.",
+        description="Universal Manga Downloader - A powerful manga downloader with retry logic and rate limiting.",
+        epilog="For more information, visit: https://github.com/YourRepo/universal-manga-downloader",
     )
     parser.add_argument(
         "--doctor",
         action="store_true",
-        help="Run environment diagnostics instead of starting the GUI.",
+        help="Run comprehensive environment diagnostics (Python, Tkinter, dependencies, disk space).",
     )
     parser.add_argument(
         "--log-level",
         choices=["debug", "info", "warning", "error", "critical"],
-        help="Override the root logger level for this session.",
+        default=None,
+        metavar="LEVEL",
+        help="Set logging level: debug, info, warning, error, or critical.",
     )
     parser.add_argument(
-        "--version",
+        "--version", "-v",
         action="store_true",
-        help="Print the installed application version and exit.",
+        help="Display version information and exit.",
     )
     parser.add_argument(
         "--no-gui",
         action="store_true",
-        help="Validate configuration without launching the GUI.",
+        help="Validate configuration and dependencies without launching the GUI.",
     )
     parser.add_argument(
         "--auto-update",
         action="store_true",
-        help="Upgrade the installed package before launching.",
+        help="Automatically upgrade to the latest version before launching.",
+    )
+    parser.add_argument(
+        "--config-info",
+        action="store_true",
+        help="Display current configuration settings and exit.",
     )
     return parser
 
@@ -61,8 +69,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.version:
-        print(_get_version())
-        return 0
+        return show_version()
+
+    if args.config_info:
+        return show_config_info()
 
     if args.doctor:
         return run_doctor()
@@ -77,50 +87,107 @@ def main(argv: Sequence[str] | None = None) -> int:
         configure_logging(log_level)
 
     if args.no_gui:
-        print("Configuration OK. GUI launch skipped (--no-gui).")
+        print("✓ Configuration validated successfully.")
+        print("  GUI launch skipped (--no-gui flag).")
         return 0
 
     try:
         launch_gui(log_level=log_level)
     except Exception as exc:  # noqa: BLE001 - surface crashes
-        print(f"umd: fatal error - {exc}", file=sys.stderr)
+        print(f"✗ Fatal error: {exc}", file=sys.stderr)
+        print("  Run 'umd --doctor' for diagnostic information.", file=sys.stderr)
         return 1
     return 0
 
 
+def show_version() -> int:
+    """Display version information."""
+    version = _get_version()
+    print(f"Universal Manga Downloader v{version}")
+    print(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
+    print(f"Platform: {sys.platform}")
+    return 0
+
+
+def show_config_info() -> int:
+    """Display current configuration settings."""
+    try:
+        from config import CONFIG
+
+        print("Universal Manga Downloader — Configuration")
+        print("=" * 60)
+
+        print("\n[UI Configuration]")
+        print(f"  Window size: {CONFIG.ui.default_width}x{CONFIG.ui.default_height}")
+        print(f"  Progress update interval: {CONFIG.ui.progress_update_interval_ms}ms")
+
+        print("\n[Download Configuration]")
+        print(f"  Default chapter workers: {CONFIG.download.default_chapter_workers}")
+        print(f"  Default image workers: {CONFIG.download.default_image_workers}")
+        print(f"  Max total image workers: {CONFIG.download.max_total_image_workers}")
+        print(f"  Request timeout: {CONFIG.download.request_timeout}s")
+        print(f"  Max retries: {CONFIG.download.max_retries}")
+        print(f"  Retry delay: {CONFIG.download.retry_delay}s")
+
+        print("\n[Service Configuration]")
+        print(f"  Bato base URL: {CONFIG.service.bato_base_url}")
+        print(f"  MangaDex API: {CONFIG.service.mangadex_api_base}")
+        print(f"  Rate limit delay: {CONFIG.service.rate_limit_delay}s")
+        print(f"  Languages: {', '.join(CONFIG.service.mangadex_languages)}")
+
+        print("\n[PDF Configuration]")
+        print(f"  Resolution: {CONFIG.pdf.resolution} DPI")
+
+        print("\n" + "=" * 60)
+        return 0
+    except Exception as exc:
+        print(f"✗ Error loading configuration: {exc}", file=sys.stderr)
+        return 1
+
+
 def run_doctor() -> int:
-    print("Universal Manga Downloader — environment check")
-    print("-" * 60)
+    """Run comprehensive environment diagnostics."""
+    print("Universal Manga Downloader — Environment Diagnostics")
+    print("=" * 60)
 
     status = True
     status &= _check_python()
     status &= _check_tkinter()
     status &= _check_dependencies()
+    status &= _check_disk_space()
+    status &= _check_download_dir()
 
-    print("-" * 60)
+    print("=" * 60)
     if status:
-        print("All required components look good! You're ready to run `umd` 🎉")
+        print("✓ All checks passed! System is ready to run.")
+        print("\n  Start with: umd")
+        print("  Get help:   umd --help")
         return 0
 
-    print("One or more checks failed. Please address the issues above.")
+    print("✗ Some checks failed. Please address the issues above.")
+    print("  For installation help, see: README.md")
     return 1
 
 
 def _check_python() -> bool:
-    print("Python version:", sys.version.replace("\n", " "))
+    """Check Python version compatibility."""
+    print(f"\n[Python] {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
     if sys.version_info < MINIMUM_PYTHON:
-        print(f"  ✗ Requires Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer.")
+        print(f"  ✗ Requires Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer")
         return False
-    print("  ✓ Meets minimum Python version requirement.")
+    print(f"  ✓ Version requirement satisfied (>= {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]})")
     return True
 
 
 def _check_tkinter() -> bool:
+    """Check Tkinter availability and display support."""
+    print("\n[Tkinter]")
     try:
         import tkinter as tk
     except ModuleNotFoundError as exc:
-        print("Tkinter: ✗ Missing tkinter module (GUI cannot start).")
-        print(f"  Detail: {exc}")
+        print("  ✗ Tkinter module not found (GUI cannot start)")
+        print(f"     Install: apt-get install python3-tk  # Linux")
+        print(f"     Detail: {exc}")
         return False
 
     try:
@@ -129,23 +196,93 @@ def _check_tkinter() -> bool:
         root.update_idletasks()
         root.destroy()
     except Exception as exc:  # noqa: BLE001 - platform-specific failures
-        print("Tkinter: ⚠️  Installed but encountered an issue while testing the display.")
-        print(f"  Detail: {exc}")
+        print("  ⚠️  Tkinter installed but display test failed")
+        print(f"     This may be normal in headless environments")
+        print(f"     Detail: {exc}")
         return False
 
-    print("Tkinter: ✓ GUI toolkit is available.")
+    print("  ✓ GUI toolkit available and functional")
     return True
 
 
 def _check_dependencies() -> bool:
+    """Check required Python package dependencies."""
+    print("\n[Dependencies]")
     all_ok = True
     for module_name, package_name in REQUIRED_MODULES:
         if util.find_spec(module_name) is None:
-            print(f"{package_name:15s}: ✗ Not installed")
+            print(f"  ✗ {package_name:20s} - Not installed")
             all_ok = False
         else:
-            print(f"{package_name:15s}: ✓")
+            # Try to get version if available
+            try:
+                version = metadata.version(package_name)
+                print(f"  ✓ {package_name:20s} - v{version}")
+            except metadata.PackageNotFoundError:
+                print(f"  ✓ {package_name:20s} - Installed")
+
+    if not all_ok:
+        print("\n  Install missing packages:")
+        print("    pip install universal-manga-downloader")
+
     return all_ok
+
+
+def _check_disk_space() -> bool:
+    """Check available disk space in default download directory."""
+    print("\n[Disk Space]")
+    try:
+        from utils.file_utils import get_default_download_root, get_free_disk_space
+
+        download_dir = get_default_download_root()
+        free_bytes = get_free_disk_space(download_dir)
+
+        if free_bytes < 0:
+            print(f"  ⚠️  Unable to determine free space")
+            return True  # Don't fail, just warn
+
+        free_gb = free_bytes / (1024 ** 3)
+        print(f"  Download directory: {download_dir}")
+        print(f"  ✓ Free space: {free_gb:.2f} GB")
+
+        if free_gb < 1:
+            print(f"  ⚠️  Less than 1 GB free - consider freeing up space")
+
+        return True
+    except Exception as exc:
+        print(f"  ⚠️  Could not check disk space: {exc}")
+        return True  # Don't fail on disk space check
+
+
+def _check_download_dir() -> bool:
+    """Check download directory accessibility."""
+    print("\n[Download Directory]")
+    try:
+        from utils.file_utils import get_default_download_root, ensure_directory
+
+        download_dir = get_default_download_root()
+        result = ensure_directory(download_dir)
+
+        if result is None:
+            print(f"  ✗ Cannot create/access: {download_dir}")
+            return False
+
+        print(f"  ✓ Accessible: {download_dir}")
+
+        # Check write permissions
+        import tempfile
+        try:
+            with tempfile.NamedTemporaryFile(dir=download_dir, delete=True) as tmp:
+                pass
+            print(f"  ✓ Write permissions confirmed")
+        except OSError:
+            print(f"  ✗ No write permission")
+            return False
+
+        return True
+    except Exception as exc:
+        print(f"  ✗ Error checking directory: {exc}")
+        return False
 
 
 def _get_version() -> str:

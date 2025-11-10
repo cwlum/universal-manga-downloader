@@ -1,8 +1,8 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.2.0-orange)
+![Version](https://img.shields.io/badge/version-1.2.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--02-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--01--10-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/cwlum/universal-manga-downloader)
 [![Pipeline](https://gitlab.com/cwlum/universal-manga-downloader/badges/main/pipeline.svg)](https://gitlab.com/cwlum/universal-manga-downloader/-/pipelines)
 
@@ -11,6 +11,31 @@ An extensible, user-friendly GUI tool to download manga chapters from various we
 **🔗 Repository:** [https://gitlab.com/cwlum/universal-manga-downloader](https://gitlab.com/cwlum/universal-manga-downloader)
 
 This tool is built on a **modular plugin engine**, making it adaptable to future website changes and expandable to support new sites or output formats without touching the core codebase.
+
+---
+
+## 🎉 What's New in Version 1.2.1
+
+This release focuses on **stability, performance, and user experience improvements**:
+
+### Performance & Reliability
+- **🔄 Automatic Retry Logic**: Network errors are now automatically retried with exponential backoff (1s → 2s → 4s), making downloads more resilient
+- **⏱️ Rate Limiting**: Built-in request throttling prevents triggering anti-bot measures and IP bans
+- **💾 Disk Space Checking**: Pre-download validation ensures sufficient space is available (with safety margin)
+- **🔧 Enhanced Thread Management**: Graceful shutdown prevents orphaned threads and ensures clean application exit
+
+### User Experience
+- **🖱️ Silky Smooth Scrolling**: Completely redesigned mouse wheel handling with:
+  - Separate optimization for trackpad vs. mouse wheel on macOS
+  - Pixel-based Canvas scrolling for buttery-smooth feel
+  - Prevention of duplicate event bindings
+- **🚀 Optimized ScraperPool**: Intelligent waiting instead of creating excessive temporary scrapers
+- **📊 Enhanced CLI**: New `--config-info` flag and improved `--doctor` diagnostics with disk space checks
+
+### Code Quality
+- **✨ Consistent Filename Sanitization**: Unified implementation across all modules with Windows reserved name handling
+- **🎯 Better Error Messages**: More specific exception handling with actionable user feedback
+- **⚙️ Centralized Configuration**: All hardcoded values moved to CONFIG for easier customization
 
 ---
 
@@ -136,7 +161,7 @@ The GUI window will appear, and you can start downloading manga.
 
 See **[DEVELOPMENT.md](DEVELOPMENT.md)** for environment setup, linting, and type-checking instructions before contributing changes. Refer to **[PLUGINS.md](PLUGINS.md)** for the full plugin specification, discovery rules, and example implementations. Check out **[ARCHITECTURE.md](ARCHITECTURE.md)** to understand the system design.
 
-Universal Manga Downloader 1.2.0 introduces a dedicated plugin system. You can now add new site parsers or export formats without editing `manga_downloader.py`.
+Universal Manga Downloader features a dedicated plugin system that allows you to add new site parsers or export formats without editing `manga_downloader.py`.
 
 ### Adding a Parser Plugin
 

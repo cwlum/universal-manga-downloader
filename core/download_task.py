@@ -18,7 +18,13 @@ from bs4 import BeautifulSoup
 from config import CONFIG
 from core.queue_manager import QueueState
 from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, compose_chapter_name
-from utils.file_utils import collect_image_files, determine_file_extension, ensure_directory
+from utils.file_utils import (
+    check_disk_space_sufficient,
+    collect_image_files,
+    determine_file_extension,
+    ensure_directory,
+    estimate_chapter_size,
+)
 from utils.http_client import ScraperPool
 
 logger = logging.getLogger(__name__)
@@ -160,9 +166,38 @@ class DownloadTask:
     ) -> BeautifulSoup | None:
         self.ui.queue_set_status(self.queue_id, "Fetching chapter page…", QueueState.RUNNING)
         self.ui.set_status(f"Status: Fetching {display_label}...")
-        response = scraper.get(self.url, timeout=CONFIG.download.request_timeout)
-        response.raise_for_status()
-        return BeautifulSoup(response.text, "html.parser")
+
+        max_retries = CONFIG.download.max_retries
+        retry_delay = CONFIG.download.retry_delay
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = scraper.get(self.url, timeout=CONFIG.download.request_timeout)
+                response.raise_for_status()
+                return BeautifulSoup(response.text, "html.parser")
+            except requests.RequestException as exc:
+                if attempt < max_retries:
+                    wait_time = retry_delay * (2 ** attempt)
+                    logger.info(
+                        "Retry %d/%d for chapter page after %.1fs: %s",
+                        attempt + 1, max_retries, wait_time, exc
+                    )
+                    self.ui.queue_set_status(
+                        self.queue_id,
+                        f"Retrying ({attempt + 1}/{max_retries})…",
+                        QueueState.RUNNING
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error("Failed to fetch chapter page after %d attempts", max_retries + 1)
+                    self._mark_failure(
+                        f"Network error after {max_retries + 1} attempts: {exc}",
+                        display_label,
+                        status_message=f"Status: Failed to fetch {display_label} - {exc}"
+                    )
+                    raise
+
+        return None
 
     def _parse_chapter(
         self,
@@ -230,6 +265,29 @@ class DownloadTask:
             )
             return []
 
+        # Check disk space before starting download
+        estimated_size = estimate_chapter_size(total_images)
+        is_sufficient, free_bytes, required_bytes = check_disk_space_sufficient(
+            download_dir, estimated_size
+        )
+
+        if not is_sufficient and free_bytes >= 0:
+            # Format sizes for user-friendly display
+            free_mb = free_bytes / (1024 * 1024)
+            required_mb = required_bytes / (1024 * 1024)
+            logger.warning(
+                "Insufficient disk space for %s: %.1f MB free, %.1f MB required",
+                chapter_display,
+                free_mb,
+                required_mb,
+            )
+            self._mark_failure(
+                f"Insufficient disk space: {free_mb:.1f} MB free, {required_mb:.1f} MB required.",
+                chapter_display,
+                status_message=f"Status: Not enough disk space for {chapter_display}.",
+            )
+            return []
+
         workers = min(self.image_worker_count, CONFIG.download.max_total_image_workers)
         self.ui.queue_reset_progress(self.queue_id, total_images)
         self.ui.queue_set_status(
@@ -269,25 +327,50 @@ class DownloadTask:
         def fetch_image(index: int, img_url: str) -> tuple[int, bool, str | None]:
             self.image_semaphore.acquire()
             session = self.scraper_pool.acquire()
+
+            max_retries = CONFIG.download.max_retries
+            retry_delay = CONFIG.download.retry_delay
+
             try:
-                with session.get(
-                    img_url,
-                    timeout=request_timeout,
-                    stream=True,
-                    headers=base_headers,
-                    cookies=base_cookies,
-                ) as img_response:
-                    img_response.raise_for_status()
-                    file_ext = determine_file_extension(img_url, img_response)
-                    file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
-                    with open(file_path, "wb") as file_handler:
-                        for chunk in img_response.iter_content(chunk_size=65536):
-                            if not chunk:
-                                continue
-                            file_handler.write(chunk)
-                return index, True, None
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Failed to download %s: %s", img_url, exc)
+                last_error = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        with session.get(
+                            img_url,
+                            timeout=request_timeout,
+                            stream=True,
+                            headers=base_headers,
+                            cookies=base_cookies,
+                        ) as img_response:
+                            img_response.raise_for_status()
+                            file_ext = determine_file_extension(img_url, img_response)
+                            file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
+                            with open(file_path, "wb") as file_handler:
+                                for chunk in img_response.iter_content(chunk_size=65536):
+                                    if not chunk:
+                                        continue
+                                    file_handler.write(chunk)
+                        return index, True, None
+                    except (requests.RequestException, OSError, IOError) as exc:
+                        last_error = exc
+                        if attempt < max_retries:
+                            # Exponential backoff: 1s, 2s, 4s, ...
+                            wait_time = retry_delay * (2 ** attempt)
+                            logger.debug(
+                                "Retry %d/%d for image %d after %.1fs: %s",
+                                attempt + 1, max_retries, index + 1, wait_time, exc
+                            )
+                            time.sleep(wait_time)
+                        else:
+                            logger.warning(
+                                "Failed to download image %d from %s after %d attempts: %s",
+                                index + 1, img_url, max_retries + 1, exc
+                            )
+
+                # All retries exhausted
+                return index, False, img_url
+            except Exception as exc:  # noqa: BLE001 - protect thread from unexpected failures
+                logger.exception("Unexpected error downloading image %d from %s", index + 1, img_url)
                 return index, False, img_url
             finally:
                 self.scraper_pool.release(session)

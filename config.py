@@ -64,6 +64,9 @@ class ServiceConfig:
     mangadex_max_chapter_pages: int = 5
     mangadex_languages: tuple[str, ...] = ("en",)
 
+    # Rate limiting (seconds between requests)
+    rate_limit_delay: float = 0.5  # 500ms between requests to same service
+
 
 @dataclass(frozen=True)
 class PDFConfig:

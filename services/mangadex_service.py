@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -43,6 +44,19 @@ class MangaDexService:
         self._search_timeout = download_cfg.search_timeout
         self._series_timeout = download_cfg.series_info_timeout
 
+        self._last_request_time: float = 0.0
+        self._rate_limit_delay = service_cfg.rate_limit_delay
+
+    def _apply_rate_limit(self) -> None:
+        """Ensure minimum delay between API requests to respect rate limits."""
+        if self._last_request_time > 0:
+            elapsed = time.time() - self._last_request_time
+            if elapsed < self._rate_limit_delay:
+                sleep_time = self._rate_limit_delay - elapsed
+                logger.debug("Rate limiting: sleeping %.2fs", sleep_time)
+                time.sleep(sleep_time)
+        self._last_request_time = time.time()
+
     # --- Public API -----------------------------------------------------
     def search_manga(self, query: str, limit: int | None = None) -> list[dict[str, str]]:
         """Return basic search results for the supplied title query."""
@@ -60,6 +74,7 @@ class MangaDexService:
         for include in ("author", "artist", "cover_art"):
             params.append(("includes[]", include))
 
+        self._apply_rate_limit()
         response = self._session.get(
             f"{self._api_base}/manga",
             params=params,
@@ -175,6 +190,7 @@ class MangaDexService:
             ("includes[]", "cover_art"),
             ("includes[]", "tag"),
         ]
+        self._apply_rate_limit()
         response = self._session.get(
             f"{self._api_base}/manga/{manga_id}",
             params=params,
@@ -202,6 +218,7 @@ class MangaDexService:
             for language in self._languages or ("en",):
                 params.append(("translatedLanguage[]", language))
 
+            self._apply_rate_limit()
             response = self._session.get(
                 f"{self._api_base}/chapter",
                 params=params,
@@ -231,6 +248,7 @@ class MangaDexService:
 
     def _fetch_chapter_metadata(self, chapter_id: str) -> dict[str, str] | None:
         params = [("includes[]", "manga")]
+        self._apply_rate_limit()
         response = self._session.get(
             f"{self._api_base}/chapter/{chapter_id}",
             params=params,
@@ -259,6 +277,7 @@ class MangaDexService:
         return {"title": manga_title, "chapter": chapter_label}
 
     def _fetch_chapter_images(self, chapter_id: str) -> list[str]:
+        self._apply_rate_limit()
         response = self._session.get(
             f"{self._api_base}/at-home/server/{chapter_id}",
             timeout=self._request_timeout,

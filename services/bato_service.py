@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from urllib.parse import urljoin
 
 import cloudscraper
@@ -20,6 +21,18 @@ class BatoService:
         self.base_url = CONFIG.service.bato_base_url
         self.search_path = CONFIG.service.bato_search_path
         self.max_search_pages = CONFIG.service.bato_max_search_pages
+        self._last_request_time: float = 0.0
+        self._rate_limit_delay = CONFIG.service.rate_limit_delay
+
+    def _apply_rate_limit(self) -> None:
+        """Ensure minimum delay between requests to avoid triggering anti-bot measures."""
+        if self._last_request_time > 0:
+            elapsed = time.time() - self._last_request_time
+            if elapsed < self._rate_limit_delay:
+                sleep_time = self._rate_limit_delay - elapsed
+                logger.debug("Rate limiting: sleeping %.2fs", sleep_time)
+                time.sleep(sleep_time)
+        self._last_request_time = time.time()
 
     def search_manga(self, query: str, max_pages: int | None = None) -> list[dict[str, str]]:
         """Return a list of search results for the supplied query."""
@@ -34,6 +47,7 @@ class BatoService:
         seen_urls: set[str] = set()
 
         for page in range(1, max(1, max_pages) + 1):
+            self._apply_rate_limit()
             params = {"word": normalized_query, "page": page}
             response = self._scraper.get(
                 urljoin(self.base_url, self.search_path),
@@ -78,7 +92,8 @@ class BatoService:
 
     def get_series_info(self, series_url: str) -> dict[str, object]:
         """Fetch title, metadata, and chapter listing for a series page."""
-        response = self._scraper.get(series_url, timeout=20)
+        self._apply_rate_limit()
+        response = self._scraper.get(series_url, timeout=CONFIG.download.series_info_timeout)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, "html.parser")

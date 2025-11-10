@@ -46,8 +46,38 @@ class BaseParser:
     @staticmethod
     def sanitize_filename(name: str) -> str:
         """
-        A utility function to remove illegal characters from filenames.
+        Return a filesystem-friendly representation of a filename.
+
+        This implementation:
+        - Replaces colons with " - " for readability
+        - Removes only truly invalid filesystem characters: \\ / * ? " < > |
+        - Handles Windows reserved names (CON, PRN, AUX, NUL, COM1-9, LPT1-9)
+        - Preserves spaces and readable characters
+        - Collapses multiple spaces and dashes
         """
-        sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '_', name)
-        sanitized = re.sub(r'_{3,}', '__', sanitized)
-        return sanitized.strip('_')
+        from pathlib import PurePath
+
+        candidate = name.replace(":", " - ")
+        candidate = candidate.replace("\n", " ").replace("\r", " ")
+        candidate = re.sub(r"[\\/*?\"<>|]", " ", candidate)
+        candidate = candidate.replace("_", " ")
+        candidate = re.sub(r"\s+", " ", candidate)
+        candidate = re.sub(r"-{2,}", "-", candidate)
+        sanitized = candidate.strip(" .")
+        if not sanitized:
+            return "item"
+
+        # Windows reserved filenames must not be used without a suffix.
+        reserved = {
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            *(f"COM{i}" for i in range(1, 10)),
+            *(f"LPT{i}" for i in range(1, 10)),
+        }
+        upper_name = PurePath(sanitized).name.upper()
+        if upper_name in reserved:
+            sanitized = f"{sanitized} -"
+
+        return sanitized

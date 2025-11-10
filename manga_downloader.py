@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -555,10 +556,15 @@ class MangaDownloader(tk.Tk):
         try:
             results = service.search_manga(query)
         except requests.RequestException as error:
-            message = f"Status: {provider_key} search failed - {error}"
+            message = f"Status: {provider_key} search failed - Network error: {error}"
+            logger.warning("Network error during search for %s: %s", query, error)
             self.after(0, lambda msg=message: self._on_search_failure(msg))
-        except Exception as error:  # noqa: BLE001 - surface unexpected failures
-            logger.exception("Search workflow failed for query %s with provider %s", query, provider_key)
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as error:
+            logger.exception("Data parsing error during search for %s with %s", query, provider_key)
+            message = f"Status: {provider_key} search error - Invalid response format"
+            self.after(0, lambda msg=message: self._on_search_failure(msg))
+        except Exception as error:  # noqa: BLE001 - catch remaining unexpected failures
+            logger.exception("Unexpected error in search for %s with %s", query, provider_key)
             message = f"Status: {provider_key} search error - {error}"
             self.after(0, lambda msg=message: self._on_search_failure(msg))
         else:
@@ -665,11 +671,16 @@ class MangaDownloader(tk.Tk):
         try:
             data = service.get_series_info(series_url)
         except requests.RequestException as error:
-            message = f"Status: {provider_key} series fetch failed - {error}"
+            message = f"Status: {provider_key} series fetch failed - Network error: {error}"
+            logger.warning("Network error fetching series %s: %s", series_url, error)
             self.after(0, lambda msg=message: self._on_series_failure(msg))
-        except Exception as error:  # noqa: BLE001
-            logger.exception("Failed to process series info for %s using provider %s", series_url, provider_key)
-            message = f"Status: {provider_key} series parsing error - {error}"
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as error:
+            logger.exception("Data parsing error for series %s with %s", series_url, provider_key)
+            message = f"Status: {provider_key} series parsing error - Invalid response format"
+            self.after(0, lambda msg=message: self._on_series_failure(msg))
+        except Exception as error:  # noqa: BLE001 - catch remaining unexpected failures
+            logger.exception("Unexpected error processing series %s with %s", series_url, provider_key)
+            message = f"Status: {provider_key} error - {error}"
             self.after(0, lambda msg=message: self._on_series_failure(msg))
         else:
             self.after(0, lambda: self._on_series_success(data, provider_key))
@@ -1396,7 +1407,7 @@ class MangaDownloader(tk.Tk):
             self.queue_canvas.update_idletasks()
             self.queue_canvas.yview_moveto(1.0)
 
-        self.after(50, _scroll)
+        self.after(CONFIG.ui.queue_scroll_delay_ms, _scroll)
 
     def _bind_mousewheel_area(
         self,
@@ -1410,76 +1421,119 @@ class MangaDownloader(tk.Tk):
 
         actual_target = target or widget
 
+        # Track which widgets have been bound to prevent duplicate bindings
+        if not hasattr(self, "_bound_widgets"):
+            self._bound_widgets: set[tk.Misc] = set()
+
+        # Skip if already bound
+        if widget in self._bound_widgets:
+            return
+
         def _on_mousewheel(event: tk.Event, scroll_target: tk.Misc = actual_target):
             delta = self._normalize_mousewheel_delta(event)
-            if delta == 0:
+            if abs(delta) < 0.001:  # Ignore very small deltas
                 return "break"
             self._scroll_target(scroll_target, delta)
             return "break"
 
         def _on_linux_wheel(event: tk.Event, scroll_target: tk.Misc = actual_target):
             if event.num == 4:
-                delta = -1
+                delta = -1.0
             elif event.num == 5:
-                delta = 1
+                delta = 1.0
             else:
                 return "break"
             self._scroll_target(scroll_target, delta)
             return "break"
 
+        # Bind events (add=True ensures we don't override other handlers)
         widget.bind("<MouseWheel>", _on_mousewheel, add=True)
         widget.bind("<Button-4>", _on_linux_wheel, add=True)
         widget.bind("<Button-5>", _on_linux_wheel, add=True)
 
+        # Mark as bound
+        self._bound_widgets.add(widget)
+
+        # Recursively bind children
         for child in widget.winfo_children():
             self._bind_mousewheel_area(child, target=actual_target)
 
     def _normalize_mousewheel_delta(self, event: tk.Event) -> float:
-        """Normalise OS-specific wheel events into consistent unit steps."""
+        """Normalise OS-specific wheel events into consistent unit steps.
+
+        Returns positive values for scrolling down, negative for scrolling up.
+        Handles both trackpad (small deltas) and mouse wheel (large deltas).
+        """
 
         delta = getattr(event, "delta", 0)
+        if delta == 0:
+            return 0.0
+
         platform = sys.platform
 
         if platform.startswith("linux"):
-            if delta == 0:
-                return 0
+            # Linux: delta is typically ±120 per notch
             if abs(delta) >= 120:
-                return -delta / 120
+                return -delta / 120.0
             return -1.0 if delta > 0 else 1.0
 
         if platform == "darwin":
-            if delta == 0:
-                return 0
-            adjusted = -delta / 120 if abs(delta) >= 120 else -delta
-            if adjusted == 0:
-                return -1.0 if delta > 0 else 1.0
-            return adjusted
+            # macOS: Complex handling for both trackpad and mouse
+            # Trackpad: sends small precise deltas (1-10)
+            # Mouse wheel: sends large deltas (120 multiples)
 
-        if delta == 0:
-            return 0
+            abs_delta = abs(delta)
 
-        return -delta / 120
+            # Mouse wheel: large discrete steps
+            if abs_delta >= 40:
+                # Standard mouse wheel gives ±120 per notch
+                # Scale it down for smoother scrolling
+                normalized = -delta / 30.0  # Changed from /120 to /30 for better feel
+                return max(-5.0, min(5.0, normalized))  # Clamp to ±5 units
+
+            # Trackpad: small continuous scrolling
+            # These are already smooth, just invert and scale slightly
+            normalized = -delta * 0.3  # Scale for comfortable speed
+            return max(-2.0, min(2.0, normalized))  # Clamp to ±2 units
+
+        # Windows: typically ±120 per notch
+        return -delta / 120.0
 
     def _scroll_target(self, target: tk.Misc, delta: float) -> None:
-        """Scroll widgets while smoothing fractional wheel deltas."""
+        """Scroll widgets with smooth fractional delta support.
+
+        For Canvas widgets, uses pixel-based scrolling for smoother feel.
+        For Listbox/Text widgets, accumulates fractional deltas.
+        """
 
         if not hasattr(target, "yview_scroll"):
             return
 
-        if not hasattr(self, "_scroll_remainders"):
-            self._scroll_remainders = {}
-
-        remainder = self._scroll_remainders.get(target, 0.0) + float(delta)
-        steps = int(remainder)
-        remainder -= steps
-        self._scroll_remainders[target] = remainder
-
-        if steps == 0:
-            return
-
         try:
-            target.yview_scroll(steps, "units")
+            # Canvas widgets benefit from pixel scrolling
+            if isinstance(target, tk.Canvas):
+                # Convert delta to pixels (20 pixels per unit)
+                pixels = int(delta * 20)
+                if pixels != 0:
+                    target.yview_scroll(pixels, "pixels")
+                return
+
+            # For Listbox and Text widgets, use unit scrolling with accumulation
+            if not hasattr(self, "_scroll_remainders"):
+                self._scroll_remainders = {}
+
+            # Accumulate fractional scrolling for smoother feel
+            remainder = self._scroll_remainders.get(target, 0.0) + float(delta)
+            steps = int(remainder)
+            remainder -= steps
+            self._scroll_remainders[target] = remainder
+
+            # Only scroll if we have at least one full step
+            if steps != 0:
+                target.yview_scroll(steps, "units")
+
         except tk.TclError:
+            # Widget might not be scrollable in current state
             pass
 
 
@@ -1527,12 +1581,33 @@ class MangaDownloader(tk.Tk):
             self._update_queue_progress()
 
     def on_close(self):
+        """Clean shutdown of all resources when closing the application."""
+        logger.info("Application shutting down...")
+
+        # Gracefully shutdown thread pool with timeout
         with self.chapter_executor_lock:
             if self.chapter_executor is not None:
-                self.chapter_executor.shutdown(wait=False)
-                self.chapter_executor = None
-        self.scraper_pool.close()
-        self.plugin_manager.shutdown()
+                logger.debug("Shutting down chapter executor...")
+                try:
+                    # Wait up to 10 seconds for tasks to complete
+                    self.chapter_executor.shutdown(wait=True, cancel_futures=False)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Error during executor shutdown: %s", exc)
+                finally:
+                    self.chapter_executor = None
+
+        # Close other resources
+        try:
+            self.scraper_pool.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error closing scraper pool: %s", exc)
+
+        try:
+            self.plugin_manager.shutdown()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Error shutting down plugin manager: %s", exc)
+
+        logger.info("Shutdown complete")
         self.destroy()
 
 def main(log_level: int | str | None = None) -> None:

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from config import CONFIG
 from .base import BaseConverter, ChapterMetadata, compose_chapter_name
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class PDFConverter(BaseConverter):
             primary.save(
                 pdf_path,
                 "PDF",
-                resolution=100.0,
+                resolution=CONFIG.pdf.resolution,
                 save_all=True,
                 append_images=rest,
             )
