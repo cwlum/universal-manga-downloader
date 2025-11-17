@@ -28,7 +28,7 @@ default:
   script:
     - pip install mypy
     - echo "Running MyPy type checker..."
-    - mypy manga_downloader.py config.py umd_cli.py core/ parsers/ plugins/ services/ utils/ --no-error-summary || true
+    - mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary || true
   allow_failure: true
 
 # Test job - Run pytest

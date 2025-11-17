@@ -7,7 +7,7 @@ import os
 import threading
 import time
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,6 +44,10 @@ class DownloadUIHooks:
     set_status: Callable[[str], None]
 
 
+class DownloadCancelled(RuntimeError):
+    """Raised when a download should stop due to external cancellation."""
+
+
 class DownloadTask:
     """Execute a chapter download, emitting updates through ``DownloadUIHooks``."""
 
@@ -59,6 +63,8 @@ class DownloadTask:
         image_worker_count: int,
         resolve_download_dir: Callable[[], str | None],
         ui_hooks: DownloadUIHooks,
+        should_abort: Callable[[], bool] | None = None,
+        wait_if_paused: Callable[[], object] | None = None,
     ) -> None:
         self.queue_id = queue_id
         self.url = url
@@ -69,6 +75,8 @@ class DownloadTask:
         self.image_worker_count = max(1, image_worker_count)
         self.resolve_download_dir = resolve_download_dir
         self.ui = ui_hooks
+        self._should_abort = should_abort
+        self._wait_if_paused = wait_if_paused
 
     def run(self) -> None:
         """Execute the download workflow."""
@@ -78,6 +86,8 @@ class DownloadTask:
         chapter_display = display_label
 
         try:
+            self._raise_if_cancelled()
+            self._wait_for_resume()
             with self.scraper_pool.session() as scraper:
                 soup = self._fetch_chapter_page(scraper, display_label)
                 if soup is None:
@@ -146,6 +156,10 @@ class DownloadTask:
                 else:
                     self.ui.queue_mark_finished(self.queue_id, True, "Completed")
                     self.ui.set_status(f"Status: Completed {chapter_display}.")
+        except DownloadCancelled:
+            logger.info("Download cancelled for %s", chapter_display)
+            self.ui.queue_set_status(self.queue_id, "Cancelled", QueueState.CANCELLED)
+            self.ui.set_status(f"Status: Cancelled {chapter_display}.")
         except requests.RequestException as exc:
             self.ui.queue_mark_finished(self.queue_id, False, f"Network error: {exc}")
             self.ui.set_status(f"Status: Error - Failed to fetch {chapter_display}: {exc}")
@@ -172,6 +186,7 @@ class DownloadTask:
 
         for attempt in range(max_retries + 1):
             try:
+                self._wait_for_resume()
                 response = scraper.get(self.url, timeout=CONFIG.download.request_timeout)
                 response.raise_for_status()
                 return BeautifulSoup(response.text, "html.parser")
@@ -256,6 +271,8 @@ class DownloadTask:
         download_dir: str,
         chapter_display: str,
     ) -> list[str]:
+        self._raise_if_cancelled()
+        self._wait_for_resume()
         total_images = len(image_urls)
         if total_images == 0:
             self._mark_failure(
@@ -332,6 +349,9 @@ class DownloadTask:
             retry_delay = CONFIG.download.retry_delay
 
             try:
+                self._wait_for_resume()
+                if self._is_cancelled():
+                    raise DownloadCancelled
                 for attempt in range(max_retries + 1):
                     try:
                         with session.get(
@@ -348,6 +368,9 @@ class DownloadTask:
                                 for chunk in img_response.iter_content(chunk_size=65536):
                                     if not chunk:
                                         continue
+                                    self._wait_for_resume()
+                                    if self._is_cancelled():
+                                        raise DownloadCancelled
                                     file_handler.write(chunk)
                         return index, True, None
                     except (requests.RequestException, OSError) as exc:
@@ -366,6 +389,8 @@ class DownloadTask:
                             )
                 # All retries exhausted
                 return index, False, img_url
+            except DownloadCancelled:
+                return index, False, None
             except Exception:  # noqa: BLE001 - protect thread from unexpected failures
                 logger.exception("Unexpected error downloading image %d from %s", index + 1, img_url)
                 return index, False, img_url
@@ -373,12 +398,15 @@ class DownloadTask:
                 self.scraper_pool.release(session)
                 self.image_semaphore.release()
 
-        with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download") as executor:
+        executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="image-download")
+        futures: list[Future[tuple[int, bool, str | None]]] = []
+        try:
             futures = [
                 executor.submit(fetch_image, index, img_url)
                 for index, img_url in enumerate(image_urls)
             ]
             for future in as_completed(futures):
+                self._raise_if_cancelled()
                 _index, success, error_url = future.result()
                 with progress_lock:
                     completed += 1
@@ -386,6 +414,12 @@ class DownloadTask:
                 emit_progress(current_completed, force=current_completed == total_images)
                 if not success and error_url:
                     failed.append(error_url)
+        except DownloadCancelled:
+            for fut in futures:
+                fut.cancel()
+            raise
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
         if failed:
             self.ui.queue_set_status(
@@ -430,6 +464,8 @@ class DownloadTask:
             )
             self.ui.set_status(f"Status: {chapter_display} • Converting with {converter_name}...")
             try:
+                self._raise_if_cancelled()
+                self._wait_for_resume()
                 result_path = converter.convert(image_files, output_dir, metadata)
             except Exception as exc:  # noqa: BLE001 - plugin failure should be visible
                 logger.exception("Converter %s failed", converter_name)
@@ -472,6 +508,17 @@ class DownloadTask:
             self.ui.set_status(status_message)
         else:
             self.ui.set_status(f"Status: {chapter_display} • {message}")
+
+    def _is_cancelled(self) -> bool:
+        return bool(self._should_abort and self._should_abort())
+
+    def _raise_if_cancelled(self) -> None:
+        if self._is_cancelled():
+            raise DownloadCancelled
+
+    def _wait_for_resume(self) -> None:
+        if self._wait_if_paused is not None:
+            self._wait_if_paused()
 
 
 __all__ = ["DownloadTask", "DownloadUIHooks"]

@@ -1,6 +1,6 @@
 [project]
 name = "universal-manga-downloader"
-version = "1.2.1"
+version = "1.3.0"
 description = "A universal manga downloader with enhanced stability and performance."
 dependencies = [
     "requests",
@@ -15,7 +15,7 @@ umd = "umd_cli:main"
 
 [tool.setuptools]
 py-modules = ["manga_downloader", "config", "umd_cli"]
-packages = ["core", "parsers", "plugins", "services", "utils"]
+packages = ["core", "plugins", "services", "ui", "utils"]
 
 [tool.ruff]
 line-length = 100
@@ -32,3 +32,4 @@ ignore_missing_imports = true
 pretty = true
 show_error_codes = true
 follow_imports = "silent"
+exclude = "(?x)(^build/|^dist/|\\.egg-info/)"

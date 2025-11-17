@@ -82,7 +82,7 @@ class TestQueueManager:
         assert item.state == QueueState.CANCELLED
 
         stats = manager.get_stats()
-        assert stats.total == 0  # Cancelled items are removed from total
+        assert stats.total == 1  # Total remains for accurate progress accounting
         assert stats.cancelled == 1
 
     def test_pause_resume(self):

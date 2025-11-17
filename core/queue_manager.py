@@ -118,8 +118,6 @@ class QueueManager:
                 self._cancelled_downloads += 1
             if self._pending_downloads > 0:
                 self._pending_downloads -= 1
-            if self._total_downloads > 0:
-                self._total_downloads -= 1
 
     def pause_item(self, queue_id: int) -> None:
         """Mark item as paused."""

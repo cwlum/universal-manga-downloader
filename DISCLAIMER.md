@@ -1,29 +1,9 @@
 # Disclaimer
 
-## General Statement
+Universal Manga Downloader is provided for personal, educational, and archival use only. By using this software you agree to the points below.
 
-This software, Universal Manga Downloader, is provided for personal, educational, and archival purposes only. It is a tool designed to facilitate the downloading of manga chapters from publicly accessible websites for offline viewing. By using this software, you acknowledge and agree to the terms outlined in this disclaimer.
-
-## User Responsibility and Copyright
-
-The user is solely responsible for any and all content downloaded through this software. It is the user's responsibility to ensure that their use of this software and the downloaded content complies with all applicable local, state, national, and international copyright laws and regulations.
-
-The developers of this software do not endorse or condone the distribution of copyrighted material. We strongly encourage users to support the official creators and publishers by purchasing their work through legitimate channels. This tool should not be used as a means to circumvent payment for licensed content.
-
-If you are unsure whether you have the legal right to download specific content, you should consult with a legal professional or refrain from downloading it.
-
-## No Affiliation
-
-The developers of Universal Manga Downloader are not affiliated with, associated with, authorized by, endorsed by, or in any way officially connected with any of the third-party websites from which content may be downloaded. All product and company names are the trademarks or registered trademarks of their respective holders. The use of any trade name or trademark is for identification and reference purposes only and does not imply any association with the trademark holder of their product brand.
-
-## No Warranty
-
-This software is provided "as-is," without any warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the software or the use or other dealings in the software.
-
-## GitLab Terms of Service
-
-Use of this software must comply with the GitLab Terms of Service. This project is hosted on GitLab as a software development project and is not intended to be a service for distributing copyrighted material. Any use of this software that violates the GitLab Terms of Service is strictly prohibited. The developers are not responsible for any violations of these terms by the end-users.
-
-## Platform Migration
-
-This project was previously hosted on GitHub but has been migrated to GitLab to align with our commitment to open-source values and community-driven development. GitLab's platform better supports our educational and archival mission while maintaining transparency and user freedom.
+- **User responsibility**: You must comply with local and international copyright laws. Verify you have the right to download any content; when in doubt, do not download it.
+- **Support creators**: Purchase official releases where available. The project does not condone piracy or monetization of copyrighted works.
+- **No affiliation**: UMD is not affiliated with Bato, MangaDex, or any other third-party site. All trademarks remain with their respective owners.
+- **No warranty**: The software is provided “as is” without any express or implied warranties, including merchantability or fitness for a particular purpose.
+- **Platform terms**: Usage must comply with the hosting platform’s Terms of Service. The authors are not responsible for violations by end users.

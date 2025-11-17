@@ -1,117 +1,52 @@
 # Contributing Guide
 
-Thank you for your interest in improving Universal Manga Downloader! This project thrives on community-driven plugins and quality contributions. The guidelines below help us keep the codebase maintainable, type-safe, and respectful of the non-commercial spirit of the project.
+Thank you for helping improve Universal Manga Downloader! This guide outlines the expectations for contributors and how to get changes merged smoothly.
 
-## 🧭 Getting Started
+## Core Expectations
 
-1. Fork the repository and clone your fork.
-2. Create a feature branch from `main`:
-   ```bash
-   git checkout -b feature/your-change
-   ```
-3. Install dependencies into a Python 3.11 virtual environment:
-   ```bash
-   pip install -r requirements.txt
-   pip install ruff mypy pytest black
-   ```
-4. Configure the repo for pre-commit hooks or formatting tools you rely on (optional but encouraged).
+- Work from a feature branch (for example, `feature/new-parser` or `fix/resume-race`).
+- Follow the non-commercial license (CC BY-NC-SA 4.0); no telemetry, ads, or embedded secrets.
+- Keep changes small and well-documented; update relevant `.md` files when behavior shifts.
+- Use the shared tooling (`ruff`, `mypy`, `pytest`) and avoid `print` in production code.
 
-## 🔌 Plugin Development
+## Getting Set Up
 
-Plugins live in the `plugins/` directory and are auto-discovered at runtime. The application ships with a loader that scans for `.py` files (excluding `__init__.py` and hidden files) and registers each plugin safely using `importlib`.
-
-### Parser Plugins
-
-- Subclass `BasePlugin` from `plugins.base`.
-- Implement the required methods:
-  - `get_name(self) -> str`
-  - `can_handle(self, url: str) -> bool`
-  - `parse(self, soup: BeautifulSoup, url: str) -> ParsedChapter | None`
-- Optional lifecycle hooks:
-  - `on_load(self) -> None`
-  - `on_unload(self) -> None`
-- Return sanitized titles/chapters using `BasePlugin.sanitize_filename` to avoid filesystem issues.
-
-### Converter Plugins
-
-- Subclass `BaseConverter` from `plugins.base`.
-- Implement:
-  - `get_name(self) -> str`
-  - `get_output_extension(self) -> str`
-  - `convert(self, image_files: Sequence[Path], output_dir: Path, metadata: ChapterMetadata) -> Path | None`
-- Use the `ChapterMetadata` TypedDict to name files consistently.
-- Report failures via exceptions or `None`; the GUI surfaces log messages for users.
-
-### Non-Commercial Requirement
-
-All plugins **must** comply with the repository’s CC BY-NC-SA 4.0 license:
-- No telemetry, tracking pixels, advertising SDKs, or monetization logic.
-- Do not embed API keys or secrets—use environment variables or documentation instead.
-- Cite any third-party datasets or code you adapt.
-
-## 🧪 Testing & Quality Gates
-
-Before opening a pull request, run the full suite of checks from the project root:
+Complete the steps in [ONBOARDING.md](ONBOARDING.md) to create a virtual environment, install dependencies, and verify the GUI launches. Reactivate the venv for every session:
 
 ```bash
-ruff check .
-mypy .
-pytest -v
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
-- Keep code type-hinted (PEP 484) and follow PEP 8 formatting. We recommend `black` for consistent formatting.
-- Fix or locally suppress lint findings; avoid disabling lints globally.
-- Add or update tests when you introduce new behavior (e.g., new plugin types or GUI features).
+## Development Workflow
 
-## 📮 Pull Request Process
+1. Sync: `git fetch --all --prune` and `git pull --ff-only` (set upstream if needed).
+2. Branch: `git checkout -b feature/your-change`.
+3. Code: keep commits focused with clear messages (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
+4. Validate: run `ruff check .`, `mypy ...`, and `pytest tests -q`.
+5. Document: update README/PLUGINS/DEVELOPMENT/ARCHITECTURE as appropriate.
 
-1. **Ensure your branch is up-to-date** with the latest `main`:
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
+## Pull Requests
 
-2. **Run all quality checks** and ensure they pass:
-   ```bash
-   ruff check .
-   mypy .
-   pytest
-   ```
+Include the following in every PR:
 
-3. **Update documentation** when behavior changes:
-   - `README.md` for user-facing changes
-   - `DEVELOPMENT.md` for development workflow changes
-   - `ARCHITECTURE.md` for architectural changes
-   - `PLUGINS.md` for plugin API changes
-   - Add docstrings and comments for complex code
+- Summary of what changed and why.
+- Tests executed (commands and manual steps).
+- Screenshots/GIFs for UI updates when relevant.
+- Breaking changes, if any, called out explicitly.
+- Issue links (`Fixes #123`) where applicable.
 
-4. **Write a clear PR description** using the provided template:
-   - **Summary**: What does this PR do?
-   - **Motivation**: Why is this change needed?
-   - **Testing**: How did you test this? Include steps to reproduce
-   - **Screenshots**: If applicable, for UI changes
-   - **Breaking Changes**: If any, list them clearly
-   - **Related Issues**: Link to issues this PR addresses
+## Validation Commands
 
-5. **Follow commit message conventions**:
-   ```
-   feat: Add EPUB converter plugin
-   fix: Resolve race condition in queue manager
-   docs: Update architecture documentation
-   refactor: Extract UI helpers into utils module
-   test: Add tests for queue state transitions
-   ```
+| Purpose | Command |
+| --- | --- |
+| Lint | `ruff check .` |
+| Type check | `mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary` |
+| Tests | `pytest tests -q` |
+| GUI smoke test | `python -m manga_downloader` (or `umd`) |
 
-6. **Link to related issues**: Use keywords like "Fixes #123" or "Closes #456"
+## Community Standards
 
-7. **Submit the PR** and be responsive to reviewer feedback
-
-8. **Wait for approval**: Maintainers will review and may request changes
-
-## 🤝 Community Expectations
-
-- Be respectful in issues and PR discussions.
-- Prefer modular, testable designs; large GUI changes should be broken into focused commits.
-- When in doubt, open an issue to discuss ideas before investing significant effort.
-
-We appreciate every contribution—thank you for helping us build a universal, community-first manga downloader!
+- Be respectful and responsive in reviews.
+- Prefer modular changes; break up large GUI work into smaller patches.
+- Ask questions early—open an issue or draft PR if direction is unclear.
+- Credit upstream sources and avoid copying licensed content without permission.

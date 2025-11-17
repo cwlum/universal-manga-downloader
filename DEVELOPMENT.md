@@ -1,167 +1,61 @@
 # Development Guide
 
-## Environment Setup
+This guide covers the day-to-day workflow for contributing to Universal Manga Downloader (UMD) 1.3.0.
 
-1. Create and activate a Python 3.11 virtual environment.
-2. Install runtime dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-3. Install tooling dependencies:
-   ```bash
-   pip install ruff mypy pytest
-   ```
+## Workflow Overview
 
-## Project Structure
+- Use a dedicated branch per change (for example, `feature/pause-status` or `fix/mangadex-timeout`).
+- Sync before starting work: `git fetch --all --prune` then `git pull --ff-only` (set an upstream if needed).
+- Keep commits focused and descriptive (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
+- Update documentation alongside behavior changes and keep logging consistent (`logging` module only).
 
-```
-bato-downloader/
-├── config.py              # Application configuration and constants
-├── manga_downloader.py    # Main GUI application
-├── plugins/               # Parser and converter plugins
-│   ├── base.py            # Base classes + plugin manager
-│   ├── bato_parser.py     # Example parser plugin
-│   ├── pdf_converter.py   # Example converter plugin
-│   └── cbz_converter.py   # Example converter plugin
-├── core/                  # Core business logic
-│   └── queue_manager.py   # Thread-safe queue state management
-├── services/              # External service integrations
-│   └── bato_service.py    # Bato.to search and scraping
-└── tests/                 # Unit tests
-    ├── test_core/         # Tests for core modules
-    ├── test_plugins/      # Tests for plugin infrastructure
-    └── test_services/     # Tests for services
-```
+## Environment
 
-## Quality Gates
-
-- **Linting**: `ruff check .` (auto-fix with `ruff check --fix .`)
-- **Type checking**: `mypy .`
-- **Testing**: `pytest -v`
-
-All commands run in CI. Ensure they pass locally before opening a pull request.
-
-## Running Tests
-
-Run all tests:
-```bash
-pytest
-```
-
-Run specific test file:
-```bash
-pytest tests/test_core/test_queue_manager.py
-```
-
-Run with coverage:
-```bash
-pytest --cov=core --cov=plugins --cov=services
-```
-
-## Running the App
-
-Launch the GUI from the project root:
+Activate the `.venv` created during onboarding and ensure the editable install is present:
 
 ```bash
-python manga_downloader.py
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e .
+pip install -r requirements.txt
+pip install ruff mypy pytest
 ```
 
-The application will open a Tkinter window and reuse the configured download directory.
+Re-run the installs after pulling dependency changes.
 
-## Adding New Features
+## Core Commands
 
-### Adding a Parser Plugin
+| Purpose | Command |
+| --- | --- |
+| Lint | `ruff check .` |
+| Type check | `mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary` |
+| Tests | `pytest tests -q` |
+| GUI | `python -m manga_downloader` (or `umd`) |
+| Diagnostics | `umd --doctor` |
 
-1. Create a new file in `plugins/` (e.g., `mysite.py`)
-2. Subclass `BasePlugin` from `plugins.base`
-3. Implement `get_name()`, `can_handle(url)`, and `parse(soup, url)`
-4. Optional: override `on_load()` / `on_unload()` for setup or cleanup
-5. The plugin loader will automatically discover and register it at startup
+Run lint, type, and test checks before pushing. CI runs the same suite.
 
-### Adding a Converter Plugin
+## Coding Notes
 
-1. Create a file in `plugins/` (e.g., `epub_converter.py`)
-2. Subclass `BaseConverter`
-3. Implement `get_name()`, `get_output_extension()`, and `convert(image_files, output_dir, metadata)`
-4. Use `ChapterMetadata` from `plugins.base` for consistent naming
-5. Make sure the plugin complies with the non-commercial license requirements
+- Type hints use Python 3.11+ syntax (`list[str]`, `| None`).
+- Guard Tkinter updates from worker threads via `after(...)`.
+- When touching download logic, verify pause/resume and cancellation on a long-running chapter.
+- Keep plugin behavior defensive—return `None` on parse/convert failures and rely on shared services for network access.
 
-### Adding Configuration
+## Pull Request Checklist
 
-Update `config.py` with new settings in the appropriate config class:
-- `UIConfig` for UI-related settings
-- `DownloadConfig` for download behavior
-- `ServiceConfig` for external services
-- `PDFConfig` for PDF generation
-
-## Code Style
-
-Review **[AGENTS.md](AGENTS.md)** for AI-specific coding conventions and **[ONBOARDING.md](ONBOARDING.md)** for general coding standards before contributing changes.
-
-### Key Principles
-
-1. **Type Safety**: Use comprehensive type hints (Python 3.10+ syntax)
-2. **Logging**: Use `logging` module instead of `print()` statements
-3. **Error Handling**: Catch specific exceptions and log with context
-4. **Docstrings**: Document public functions and classes
-5. **Testing**: Write tests for new features and bug fixes
-
-## Git Workflow
-
-### Branch Naming
-
-- `feature/description` - New features
-- `fix/description` - Bug fixes
-- `refactor/description` - Code improvements
-- `docs/description` - Documentation updates
-
-### Commit Messages
-
-Follow conventional commits format:
-
-```
-feat: Add EPUB converter plugin
-fix: Resolve race condition in queue manager
-docs: Update ARCHITECTURE.md with threading model
-refactor: Extract UI helpers into utils module
-```
-
-### Pull Request Process
-
-1. Create a feature branch from `main`
-2. Make your changes with clear, atomic commits
-3. Run quality checks (ruff, mypy, pytest)
-4. Push to your fork
-5. Open a pull request with a clear description
-6. Address review feedback
-7. Maintainer will merge when approved
+- Branch is rebased on the target base (usually `main`).
+- `ruff`, `mypy`, and `pytest` all pass locally.
+- Docs updated where behavior or workflows changed.
+- PR description includes summary, motivation, tests executed, and any screenshots for UI tweaks.
+- Reference related issues (for example, `Fixes #123`).
 
 ## Troubleshooting
 
-### Import Errors
+| Issue | Diagnosis | Fix |
+| --- | --- | --- |
+| `ModuleNotFoundError: ui.logging_utils` | Editable install missing | Re-run `pip install -e .` inside the venv |
+| Tkinter window will not open | Tk not installed or display blocked | Install `python3-tk` (Linux) or ensure a display is available |
+| Ruff/Mypy fail in CI but not locally | Not using the project venv | Reactivate `.venv` and reinstall dependencies |
+| Downloads never resume | Pause event unset | Confirm resume logic calls `_pause_event.set()` |
 
-If you see import errors, ensure:
-- Virtual environment is activated
-- All dependencies are installed: `pip install -r requirements.txt`
-- You're running from the project root directory
-
-### Type Checking Errors
-
-If mypy reports errors:
-- Add type hints to function signatures
-- Use `# type: ignore[error-code]` sparingly with comments
-- Update `pyproject.toml` if needed for project-wide settings
-
-### Test Failures
-
-If tests fail:
-- Run tests individually: `pytest tests/test_core/test_queue_manager.py -v`
-- Check for missing mocks or fixtures
-- Ensure test data files exist if needed
-
-## Getting Help
-
-- Open an issue on GitLab for bugs or feature requests
-- Tag issues with `question` for help
-- Check existing issues before creating new ones
-- See **[ONBOARDING.md](ONBOARDING.md)** for common developer tasks
+Need more context? See [ARCHITECTURE.md](ARCHITECTURE.md) for design details and [PLUGINS.md](PLUGINS.md) when extending parsers/converters.
