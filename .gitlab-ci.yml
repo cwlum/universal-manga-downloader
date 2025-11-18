@@ -57,7 +57,9 @@ default:
     paths:
       - coverage.xml
     reports:
-      cobertura: coverage.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
     expire_in: 1 week
   coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+(\d+%)/'
   needs:
