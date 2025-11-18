@@ -3,49 +3,81 @@
 
 stages:
   - lint
+  - security
   - test
+  - performance
   - build
 
+variables:
+  PYTHON_VERSION: "3.11"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
 default:
-  image: python:3.11
+  image: python:${PYTHON_VERSION}
   before_script:
     - python --version
     - pip install --upgrade pip
     - pip install -e .
 
-# Lint job - Check code quality with Ruff
 "lint:ruff":
   stage: lint
   script:
     - pip install ruff
-    - echo "Running Ruff linter..."
     - ruff check .
   allow_failure: false
 
-# Type checking job with MyPy
 "lint:mypy":
   stage: lint
   script:
     - pip install mypy
-    - echo "Running MyPy type checker..."
-    - mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary || true
-  allow_failure: true
-
-# Test job - Run pytest
-"test:pytest":
-  stage: test
-  script:
-    - pip install pytest
-    - echo "Running tests..."
-    - pytest tests/ -v --tb=short
+    - mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary
   allow_failure: false
 
-# Build job - Create distribution package
+"security:pip-audit":
+  stage: security
+  script:
+    - pip install pip-audit
+    - pip-audit -r requirements.txt
+  allow_failure: false
+
+"test:coverage":
+  stage: test
+  script:
+    - pip install pytest coverage
+    - coverage run -m pytest tests/ -v --tb=short -m "not performance"
+    - coverage xml
+    - coverage report
+  artifacts:
+    when: always
+    paths:
+      - coverage.xml
+    reports:
+      cobertura: coverage.xml
+    expire_in: 1 week
+  coverage: '/TOTAL\s+\d+\s+\d+\s+\d+\s+(\d+%)/'
+  needs:
+    - "lint:ruff"
+    - "lint:mypy"
+    - "security:pip-audit"
+
+"performance:pytest":
+  stage: performance
+  script:
+    - pip install pytest
+    - pytest tests/performance -m performance -q --disable-warnings
+  needs:
+    - "lint:ruff"
+    - "lint:mypy"
+
 "build:package":
   stage: build
   script:
     - pip install build
-    - echo "Building package..."
     - python -m build
   artifacts:
     paths:
@@ -54,13 +86,14 @@ default:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
     - if: $CI_COMMIT_TAG
+  needs:
+    - "test:coverage"
+    - "performance:pytest"
 
-# Build job for tagged releases only
 "build:release":
   stage: build
   script:
     - pip install build
-    - echo "Creating release build..."
     - python -m build
   artifacts:
     paths:
