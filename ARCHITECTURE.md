@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document explains how Universal Manga Downloader (UMD) 1.3.0 is structured and how data moves through the system.
+This document explains how Universal Manga Downloader (UMD) 1.3.1 is structured and how data moves through the system.
 
 ## Design Principles
 

@@ -9,6 +9,7 @@ import sys
 from collections.abc import Sequence
 from importlib import metadata, util
 from pathlib import Path
+from typing import Any
 
 from manga_downloader import configure_logging
 from manga_downloader import main as launch_gui
@@ -286,10 +287,45 @@ def _check_download_dir() -> bool:
 
 
 def _get_version() -> str:
+    pyproject_version = _load_version_from_pyproject()
     try:
-        return metadata.version("universal-manga-downloader")
+        installed_version = metadata.version("universal-manga-downloader")
+        if pyproject_version and pyproject_version != installed_version:
+            return pyproject_version
+        return installed_version
     except metadata.PackageNotFoundError:
+        if pyproject_version:
+            return pyproject_version
         return "universal-manga-downloader (uninstalled workspace copy)"
+
+
+def _load_version_from_pyproject() -> str | None:
+    """Read the version from pyproject.toml when the package is not installed."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:  # pragma: no cover - python <3.11 not supported
+        return None
+
+    pyproject_path = Path(__file__).resolve().parent / "pyproject.toml"
+    if not pyproject_path.exists():
+        pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
+
+    try:
+        content = pyproject_path.read_bytes()
+    except OSError:
+        return None
+
+    try:
+        data: dict[str, Any] = tomllib.loads(content.decode("utf-8"))
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError):
+        return None
+
+    project = data.get("project")
+    if isinstance(project, dict):
+        version = project.get("version")
+        if isinstance(version, str):
+            return version.strip()
+    return None
 
 
 def run_auto_update() -> bool:

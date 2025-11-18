@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers the day-to-day workflow for contributing to Universal Manga Downloader (UMD) 1.3.0.
+This guide covers the day-to-day workflow for contributing to Universal Manga Downloader (UMD) 1.3.1.
 
 ## Workflow Overview
 

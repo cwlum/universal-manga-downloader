@@ -46,6 +46,13 @@ class MangaDexService:
 
         self._last_request_time: float = 0.0
         self._rate_limit_delay = service_cfg.rate_limit_delay
+        self._cache_ttl = 300.0  # seconds
+        self._cache_max_entries = 128
+        self._search_cache: dict[tuple[str, int], tuple[float, list[dict[str, str]]]] = {}
+        self._manga_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._chapter_list_cache: dict[str, tuple[float, list[dict[str, str]]]] = {}
+        self._chapter_metadata_cache: dict[str, tuple[float, dict[str, str]]] = {}
+        self._chapter_images_cache: dict[str, tuple[float, list[str]]] = {}
 
     def _apply_rate_limit(self) -> None:
         """Ensure minimum delay between API requests to respect rate limits."""
@@ -66,6 +73,11 @@ class MangaDexService:
             return []
 
         limit_value = min(max(1, limit or self._search_limit), 100)
+        cache_key = (normalized, limit_value)
+        cached = self._cache_get(self._search_cache, cache_key)
+        if cached is not None:
+            return cached
+
         params: list[tuple[str, str]] = [
             ("title", normalized),
             ("limit", str(limit_value)),
@@ -109,6 +121,7 @@ class MangaDexService:
                 }
             )
 
+        self._cache_set(self._search_cache, cache_key, results)
         return results
 
     def get_series_info(self, series_url: str) -> dict[str, object]:
@@ -184,6 +197,10 @@ class MangaDexService:
 
     # --- Internal helpers -----------------------------------------------
     def _fetch_manga_payload(self, manga_id: str) -> dict[str, Any]:
+        cached = self._cache_get(self._manga_cache, manga_id)
+        if cached is not None:
+            return cached
+
         params = [
             ("includes[]", "author"),
             ("includes[]", "artist"),
@@ -201,9 +218,14 @@ class MangaDexService:
         data = payload.get("data")
         if not isinstance(data, dict):
             raise ValueError(f"MangaDex returned an unexpected payload for manga {manga_id}")
+        self._cache_set(self._manga_cache, manga_id, data)
         return data
 
     def _fetch_chapter_list(self, manga_id: str) -> list[dict[str, str]]:
+        cached = self._cache_get(self._chapter_list_cache, manga_id)
+        if cached is not None:
+            return cached
+
         chapters: list[dict[str, str]] = []
         limit = 100
         offset = 0
@@ -244,9 +266,14 @@ class MangaDexService:
             if len(data) < limit:
                 break
 
+        self._cache_set(self._chapter_list_cache, manga_id, chapters)
         return chapters
 
     def _fetch_chapter_metadata(self, chapter_id: str) -> dict[str, str] | None:
+        cached = self._cache_get(self._chapter_metadata_cache, chapter_id)
+        if cached is not None:
+            return cached
+
         params = [("includes[]", "manga")]
         self._apply_rate_limit()
         response = self._session.get(
@@ -274,9 +301,15 @@ class MangaDexService:
         chapter_label = self._build_chapter_label(chapter_number, chapter_title, volume)
         manga_title = self._extract_manga_title(data.get("relationships", [])) or "MangaDex"
 
-        return {"title": manga_title, "chapter": chapter_label}
+        metadata = {"title": manga_title, "chapter": chapter_label}
+        self._cache_set(self._chapter_metadata_cache, chapter_id, metadata)
+        return metadata
 
     def _fetch_chapter_images(self, chapter_id: str) -> list[str]:
+        cached = self._cache_get(self._chapter_images_cache, chapter_id)
+        if cached is not None:
+            return cached
+
         self._apply_rate_limit()
         response = self._session.get(
             f"{self._api_base}/at-home/server/{chapter_id}",
@@ -302,7 +335,9 @@ class MangaDexService:
             logger.warning("MangaDex returned no image files for %s", chapter_id)
             return []
 
-        return [f"{base_url}/{path}/{hash_value}/{filename}" for path, filename in images]
+        urls = [f"{base_url}/{path}/{hash_value}/{filename}" for path, filename in images]
+        self._cache_set(self._chapter_images_cache, chapter_id, urls)
+        return urls
 
     def _build_chapter_entry(self, entry: Any) -> dict[str, str] | None:
         if not isinstance(entry, dict):
@@ -478,3 +513,20 @@ class MangaDexService:
         if isinstance(value, str) and value.strip():
             return value.strip()
         return None
+
+    def _cache_get(self, cache: dict[Any, tuple[float, Any]], key: Any) -> Any | None:
+        expiry = self._cache_ttl
+        now = time.monotonic()
+        cached = cache.get(key)
+        if cached is None:
+            return None
+        timestamp, value = cached
+        if now - timestamp > expiry:
+            cache.pop(key, None)
+            return None
+        return value
+
+    def _cache_set(self, cache: dict[Any, tuple[float, Any]], key: Any, value: Any) -> None:
+        if len(cache) >= self._cache_max_entries:
+            cache.pop(next(iter(cache)))
+        cache[key] = (time.monotonic(), value)

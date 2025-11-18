@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
 import time
+from typing import Any
 
 import pytest
-import requests
 
 from services.mangadex_service import MangaDexChapter, MangaDexService
 
@@ -84,6 +83,19 @@ def test_search_manga_blank_returns_empty() -> None:
     assert getattr(session, "calls", []) == []
 
 
+def test_search_manga_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    payloads = [{"data": []}]
+    service = _service_with_payloads(payloads)
+    service._rate_limit_delay = 0
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    service.search_manga("title", limit=1)
+    service.search_manga("title", limit=1)
+
+    session = service._session  # type: ignore[attr-defined]
+    assert len(session.calls) == 1
+
+
 def test_get_series_info_parses_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     manga_payload = {
         "data": {
@@ -134,6 +146,11 @@ def test_get_series_info_parses_metadata(monkeypatch: pytest.MonkeyPatch) -> Non
     assert chapters[0]["title"] == "Start"
     assert chapters[0]["label"] == "Vol. 2 - Ch. 1 - Start"
     assert chapters[0]["url"].endswith("/chap-1")
+
+    second = service.get_series_info("https://mangadex.org/title/123e4567-e89b-12d3-a456-426614174000/foo")
+    assert second["title"] == "Series Title"
+    session = service._session  # type: ignore[attr-defined]
+    assert len(session.calls) == 2  # manga + chapters once
 
 
 def test_fetch_chapter_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -223,6 +240,7 @@ def test_fetch_chapter_list_handles_non_list(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr("time.sleep", lambda _: None)
 
     assert service._fetch_chapter_list("series-id") == []
+    assert service._fetch_chapter_list("series-id") == []  # cached
 
 
 def test_fetch_chapter_list_stops_on_short_page(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -232,6 +250,7 @@ def test_fetch_chapter_list_stops_on_short_page(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr("time.sleep", lambda _: None)
 
     assert service._fetch_chapter_list("series-id") == []
+    assert service._fetch_chapter_list("series-id") == []  # cached
 
 
 def test_collect_image_files_prefers_data_saver() -> None:
@@ -244,6 +263,7 @@ def test_collect_image_files_returns_empty_when_missing() -> None:
     service = _service_with_payloads([])
     assert service._collect_image_files({}) == []
     assert service._filter_filenames("not-a-list") == []
+    assert service._collect_image_files({"data": [], "dataSaver": []}) == []
 
 
 def test_pick_localized_text_list_and_fallbacks() -> None:
@@ -279,6 +299,10 @@ def test_apply_rate_limit_sleeps_when_recent(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr("time.sleep", fake_sleep)
     service._apply_rate_limit()
     assert called["sleep"] > 0
+    # Cache helper uses monotonic timestamps; ensure expiry clears entries.
+    service._cache_set(service._search_cache, ("k", 1), ["v"])  # type: ignore[arg-type]
+    service._cache_ttl = -1
+    assert service._cache_get(service._search_cache, ("k", 1)) is None
 
 
 def test_extract_manga_id_variants() -> None:
@@ -338,3 +362,30 @@ def test_fetch_chapter_returns_none_for_missing_images(monkeypatch: pytest.Monke
     monkeypatch.setattr("time.sleep", lambda _: None)
 
     assert service.fetch_chapter("chap-99") is None
+    session = service._session  # type: ignore[attr-defined]
+    assert len(session.calls) == 2  # metadata + images once
+
+
+def test_fetch_chapter_uses_caches(monkeypatch: pytest.MonkeyPatch) -> None:
+    metadata_payload = {
+        "data": {
+            "id": "chap-50",
+            "attributes": {"chapter": "5", "title": "Five", "volume": "1"},
+            "relationships": [{"type": "manga", "attributes": {"title": {"en": "Series Title"}}}],
+        }
+    }
+    images_payload = {
+        "baseUrl": "https://cdn",
+        "chapter": {"hash": "hash", "data": ["a.png"], "dataSaver": ["b.png"]},
+    }
+    service = _service_with_payloads([metadata_payload, images_payload])
+    service._rate_limit_delay = 0
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    result = service.fetch_chapter("chap-50")
+    assert result is not None
+    # Second call should be served from caches.
+    second = service.fetch_chapter("chap-50")
+    assert second is not None
+    session = service._session  # type: ignore[attr-defined]
+    assert len(session.calls) == 2
