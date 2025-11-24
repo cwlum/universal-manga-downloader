@@ -33,10 +33,11 @@ updates:
       - dependency-type: "direct"
       - dependency-type: "indirect"
     # Ignore specific versions if needed
-    ignore:
-      # Example: ignore specific versions
-      # - dependency-name: "requests"
-      #   versions: ["2.99.x"]
+    ignore: []  # no ignores configured
+    # Example: ignore specific versions
+    # ignore:
+    #   - dependency-name: "requests"
+    #     versions: ["2.99.x"]
 
   # Monitor GitHub Actions
   - package-ecosystem: "github-actions"
