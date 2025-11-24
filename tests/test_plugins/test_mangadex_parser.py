@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-import requests
+import requests  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 
 from plugins.mangadex_parser import MangaDexParser
@@ -26,7 +26,7 @@ class FakeService:
 def test_mangadex_parser_can_parse_chapter(monkeypatch: pytest.MonkeyPatch) -> None:
     chapter = MangaDexChapter(title="My Manga", chapter="Ch. 1", image_urls=["https://img/1.png"])
     parser = MangaDexParser()
-    parser._service = FakeService(chapter=chapter)  # type: ignore[attr-defined]
+    parser._service = FakeService(chapter=chapter)  # type: ignore[attr-defined, assignment]
 
     soup = BeautifulSoup("<html></html>", "html.parser")
     result = parser.parse(soup, "https://mangadex.org/chapter/123e4567-e89b-12d3-a456-426614174000")
@@ -39,7 +39,7 @@ def test_mangadex_parser_can_parse_chapter(monkeypatch: pytest.MonkeyPatch) -> N
 
 def test_mangadex_parser_handles_request_exception(monkeypatch: pytest.MonkeyPatch) -> None:
     parser = MangaDexParser()
-    parser._service = FakeService(error=requests.RequestException("boom"))  # type: ignore[attr-defined]
+    parser._service = FakeService(error=requests.RequestException("boom"))  # type: ignore[attr-defined, assignment]
 
     soup = BeautifulSoup("<html></html>", "html.parser")
     result = parser.parse(soup, "https://mangadex.org/chapter/123e4567-e89b-12d3-a456-426614174000")

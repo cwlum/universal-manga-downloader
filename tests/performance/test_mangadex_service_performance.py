@@ -32,7 +32,7 @@ class FakeSession:
 
 @pytest.mark.performance
 def test_mangadex_search_caching_performance() -> None:
-    payloads = [
+    payloads: list[object] = [
         {"data": []},  # First request
     ]
     service = MangaDexService(session=FakeSession(payloads))

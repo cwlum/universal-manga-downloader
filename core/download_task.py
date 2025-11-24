@@ -261,7 +261,19 @@ class DownloadTask:
         if not base_dir:
             return None
         folder_name = compose_chapter_name(title, chapter)
+        # Ensure the folder name doesn't contain path traversal attempts
+        folder_name = os.path.basename(folder_name)
         download_candidate = os.path.join(base_dir, folder_name)
+        # Verify the resolved path is still under base_dir
+        real_base = os.path.realpath(base_dir)
+        real_candidate = os.path.realpath(download_candidate)
+        if not real_candidate.startswith(real_base):
+            logger.error(
+                "Path traversal attempt detected: %s not under %s",
+                real_candidate,
+                real_base
+            )
+            return None
         return ensure_directory(download_candidate)
 
     def _download_images(

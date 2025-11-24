@@ -38,8 +38,17 @@ class PDFConverter(BaseConverter):
         pdf_path = output_dir / f"{base_name}{self.get_output_extension()}"
         images: list[Image.Image] = []
         try:
+            # Open all images, closing already-opened ones if an error occurs
             for file_path in image_files:
-                images.append(Image.open(file_path).convert("RGB"))
+                try:
+                    img = Image.open(file_path).convert("RGB")
+                    images.append(img)
+                except Exception as e:
+                    logger.error("Failed to open image %s: %s", file_path, e)
+                    # Close any images we've already opened
+                    for opened_img in images:
+                        opened_img.close()
+                    return None
 
             if not images:
                 return None
@@ -54,9 +63,15 @@ class PDFConverter(BaseConverter):
             )
             logger.info("Created PDF %s", pdf_path)
             return pdf_path
+        except Exception as e:
+            logger.error("Failed to create PDF %s: %s", pdf_path, e)
+            return None
         finally:
             for image in images:
-                image.close()
+                try:
+                    image.close()
+                except Exception:  # noqa: BLE001
+                    pass  # Ignore close errors
 
     def on_load(self) -> None:
         logger.debug("PDF converter ready")

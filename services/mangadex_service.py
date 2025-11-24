@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests  # type: ignore[import-untyped]
 
 from config import CONFIG
+from utils.rate_limit import CircuitBreaker, CircuitBreakerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,16 @@ class MangaDexService:
         self._chapter_list_cache: dict[str, tuple[float, list[dict[str, str]]]] = {}
         self._chapter_metadata_cache: dict[str, tuple[float, dict[str, str]]] = {}
         self._chapter_images_cache: dict[str, tuple[float, list[str]]] = {}
+
+        # Initialize circuit breaker for fault tolerance
+        self._circuit_breaker = CircuitBreaker(
+            CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout=60.0,
+                window_size=10,
+            )
+        )
 
     def _apply_rate_limit(self) -> None:
         """Ensure minimum delay between API requests to respect rate limits."""
