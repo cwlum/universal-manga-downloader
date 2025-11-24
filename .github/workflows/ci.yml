@@ -128,7 +128,7 @@ jobs:
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ github.sha }}
           path: coverage.xml
@@ -194,7 +194,7 @@ jobs:
         run: python -m build
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist-${{ github.ref_name }}
           path: dist/
