@@ -20,14 +20,16 @@ updates:
       prefix: "chore"
       prefix-development: "chore"
       include: "scope"
-    # Group minor and patch updates together
+    # Group all dependency updates into a single PR
     groups:
-      production-dependencies:
+      all-dependencies:
         patterns:
           - "*"
         update-types:
+          - "major"
           - "minor"
           - "patch"
+    open-pull-requests-limit: 1
     # Allow specific major version updates
     allow:
       - dependency-type: "direct"
@@ -49,3 +51,13 @@ updates:
     commit-message:
       prefix: "ci"
       include: "scope"
+    # Single PR for all workflow bumps
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 1
