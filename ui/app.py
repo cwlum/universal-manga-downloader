@@ -10,11 +10,10 @@ import threading
 import tkinter as tk
 from collections.abc import Iterable
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
-from dataclasses import dataclass
 from functools import partial
 from numbers import Real
 from tkinter import filedialog, ttk
-from typing import Any, TypedDict, cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import requests  # type: ignore[import-untyped]
@@ -26,48 +25,10 @@ from core.queue_manager import QueueManager, QueueState
 from plugins.base import PluginManager, PluginType
 from services import BatoService, MangaDexService
 from ui.logging_utils import configure_logging
+from ui.models import STATUS_COLORS, QueueItem, SearchResult, SeriesChapter
+from ui.widgets import MouseWheelHandler, clamp_value
 from utils.file_utils import ensure_directory, get_default_download_root
 from utils.http_client import ScraperPool
-
-STATUS_COLORS: dict[QueueState, str] = {
-    QueueState.SUCCESS: "#1a7f37",
-    QueueState.ERROR: "#b91c1c",
-    QueueState.RUNNING: "#1d4ed8",
-    QueueState.PAUSED: "#d97706",
-    QueueState.CANCELLED: "#6b7280",
-}
-
-
-@dataclass(slots=True)
-class QueueItem:
-    """Container for per-chapter queue widgets and metadata."""
-
-    frame: ttk.Frame
-    title_var: tk.StringVar
-    status_var: tk.StringVar
-    status_label: ttk.Label
-    progress: ttk.Progressbar
-    maximum: int = 1
-    url: str = ""
-    initial_label: str | None = None
-    state: QueueState = QueueState.PENDING
-
-
-class SearchResult(TypedDict, total=False):
-    """Shape of entries stored for search results."""
-
-    title: str
-    url: str
-    subtitle: str
-    provider: str
-
-
-class SeriesChapter(TypedDict, total=False):
-    """Shape of chapter metadata fetched from `BatoService`."""
-
-    title: str
-    url: str
-    label: str
 
 
 configure_logging()
@@ -118,14 +79,14 @@ class MangaDownloader(tk.Tk):
         self.download_dir_var = tk.StringVar(value=get_default_download_root())
         self.download_dir_path = self.download_dir_var.get()
         self.download_dir_var.trace_add("write", self._on_download_dir_var_write)
-        self._chapter_workers_value = self._clamp_value(
+        self._chapter_workers_value = clamp_value(
             self.chapter_workers_var.get(),
             CONFIG.download.min_chapter_workers,
             CONFIG.download.max_chapter_workers,
             CONFIG.download.default_chapter_workers,
         )
         self.chapter_workers_var.set(self._chapter_workers_value)
-        self._image_workers_value = self._clamp_value(
+        self._image_workers_value = clamp_value(
             self.image_workers_var.get(),
             CONFIG.download.min_image_workers,
             CONFIG.download.max_image_workers,
@@ -134,7 +95,7 @@ class MangaDownloader(tk.Tk):
         self.image_workers_var.set(self._image_workers_value)
         self.queue_items: dict[int, QueueItem] = {}
         self._queue_item_sequence = 0
-        self._scroll_remainders: dict[tk.Misc, float] = {}
+        self._mousewheel_handler = MouseWheelHandler()
         self._chapter_futures: dict[int, Future[None]] = {}
         self._downloads_paused = False
         self.pause_button: ttk.Button | None = None
@@ -144,11 +105,11 @@ class MangaDownloader(tk.Tk):
         self._pause_event.set()
 
         self._build_ui()
-        self._bind_mousewheel_area(self.search_results_listbox)
-        self._bind_mousewheel_area(self.series_info_text)
-        self._bind_mousewheel_area(self.chapters_listbox)
-        self._bind_mousewheel_area(self.queue_canvas)
-        self._bind_mousewheel_area(self.queue_items_container, target=self.queue_canvas)
+        self._mousewheel_handler.bind_mousewheel(self.search_results_listbox)
+        self._mousewheel_handler.bind_mousewheel(self.series_info_text)
+        self._mousewheel_handler.bind_mousewheel(self.chapters_listbox)
+        self._mousewheel_handler.bind_mousewheel(self.queue_canvas)
+        self._mousewheel_handler.bind_mousewheel(self.queue_items_container, target=self.queue_canvas)
         self._refresh_provider_options()
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -1049,7 +1010,7 @@ class MangaDownloader(tk.Tk):
         self._queue_set_status(queue_id, "Cancelled", state=QueueState.CANCELLED)
 
     def _ensure_chapter_executor(self, force_reset=False):
-        desired_workers = self._clamp_value(
+        desired_workers = clamp_value(
             self._chapter_workers_value,
             CONFIG.download.min_chapter_workers,
             CONFIG.download.max_chapter_workers,
@@ -1073,7 +1034,7 @@ class MangaDownloader(tk.Tk):
                 self._chapter_executor_workers = desired_workers
 
     def _on_chapter_workers_change(self, event=None):
-        value = self._clamp_value(
+        value = clamp_value(
             self.chapter_workers_var.get(),
             CONFIG.download.min_chapter_workers,
             CONFIG.download.max_chapter_workers,
@@ -1086,7 +1047,7 @@ class MangaDownloader(tk.Tk):
             self._ensure_chapter_executor(force_reset=True)
 
     def _on_image_workers_change(self, event=None):
-        value = self._clamp_value(
+        value = clamp_value(
             self.image_workers_var.get(),
             CONFIG.download.min_image_workers,
             CONFIG.download.max_image_workers,
@@ -1098,7 +1059,7 @@ class MangaDownloader(tk.Tk):
             self._image_workers_value = value
 
     def _get_image_worker_count(self) -> int:
-        value = self._clamp_value(
+        value = clamp_value(
             self._image_workers_value or CONFIG.download.default_image_workers,
             CONFIG.download.min_image_workers,
             CONFIG.download.max_image_workers,
@@ -1157,27 +1118,6 @@ class MangaDownloader(tk.Tk):
         """Safely update the status label from any worker context."""
 
         self.after(0, lambda: self.status_label.config(text=message))
-
-    def _clamp_value(
-        self,
-        value: int | float | str | None,
-        minimum: int | None,
-        maximum: int | None,
-        default: int,
-    ) -> int:
-        int_value = default
-        try:
-            if isinstance(value, Real) and not isinstance(value, bool):
-                int_value = int(value)
-            elif isinstance(value, str) and value.strip():
-                int_value = int(value)
-        except (TypeError, ValueError, tk.TclError):
-            int_value = default
-        if minimum is not None:
-            int_value = max(minimum, int_value)
-        if maximum is not None:
-            int_value = min(maximum, int_value)
-        return int_value
 
     def _browse_download_dir(self) -> None:
         initial_dir = self.download_dir_path or get_default_download_root()
@@ -1290,7 +1230,7 @@ class MangaDownloader(tk.Tk):
         )
         self.queue_manager.add_item(queue_id, url, initial_label)
 
-        self._bind_mousewheel_area(item_frame, target=self.queue_canvas)
+        self._mousewheel_handler.bind_mousewheel(item_frame, target=self.queue_canvas)
 
         self._scroll_queue_to_bottom()
         return queue_id

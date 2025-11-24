@@ -1,5 +1,5 @@
-requests
-beautifulsoup4
-Pillow
-cloudscraper
-sv-ttk
+requests==2.32.3
+beautifulsoup4==4.12.3
+Pillow==10.4.0
+cloudscraper==1.2.71
+sv-ttk==2.6.0

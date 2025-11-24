@@ -1,0 +1,59 @@
+# Pre-commit hooks configuration for Universal Manga Downloader
+# See https://pre-commit.com for more information
+# To install: pip install pre-commit && pre-commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-json
+      - id: mixed-line-ending
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-requests
+          - types-beautifulsoup4
+          - types-Pillow
+        args: [--no-error-summary, --config-file=pyproject.toml]
+        files: ^(manga_downloader\.py|config\.py|umd_cli\.py|core/|plugins/|services/|ui/|utils/)
+
+  - repo: https://github.com/pycqa/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml, -r, .]
+        additional_dependencies: ["bandit[toml]"]
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: 1.8.0
+    hooks:
+      - id: poetry-check
+        files: ^pyproject\.toml$
+
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: bash -c 'source .venv/bin/activate 2>/dev/null || true; pytest tests/ -q -m "not performance" --maxfail=1'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit]

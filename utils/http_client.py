@@ -128,8 +128,13 @@ class ScraperPool:
 
         Returns:
             New scraper if created, None if pool is at max capacity
+
+        Raises:
+            RuntimeError: If pool is closed
         """
         with self._lock:
+            if self._closed:
+                raise RuntimeError("ScraperPool has been closed.") from None
             if self._max_size == 0 or self._created < self._max_size:
                 self._created += 1
                 logger.debug("Creating scraper %d/%d", self._created, self._max_size)
