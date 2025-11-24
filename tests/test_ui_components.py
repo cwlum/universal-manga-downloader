@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-import tkinter as tk
 from unittest.mock import Mock, patch
 
 import pytest
 
+try:
+    import tkinter as tk
+except ModuleNotFoundError:
+    tk = None
+
 # Mark all tests in this module to require display
 pytestmark = pytest.mark.skipif(
-    not hasattr(tk, "TclError"),
+    tk is None or not hasattr(tk, "TclError"),
     reason="Tkinter not available or no display",
 )
 
