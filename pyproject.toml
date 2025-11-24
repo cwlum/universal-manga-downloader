@@ -10,6 +10,16 @@ dependencies = [
     "sv-ttk",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "bandit>=1.7.5",
+    "types-requests>=2.31.0",
+]
+
 [project.scripts]
 umd = "umd_cli:main"
 

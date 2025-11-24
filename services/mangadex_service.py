@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 import requests  # type: ignore[import-untyped]
 
 from config import CONFIG
-from utils.rate_limit import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
+from utils.rate_limit import CircuitBreaker, CircuitBreakerConfig
 
 logger = logging.getLogger(__name__)
 

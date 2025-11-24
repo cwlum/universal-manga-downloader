@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import tempfile
 import threading
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
-from bs4 import BeautifulSoup
 
 from core.download_task import DownloadTask, DownloadUIHooks
 from core.queue_manager import QueueManager, QueueState
-from plugins.base import ParsedChapter, PluginManager, PluginType
+from plugins.base import PluginManager, PluginType
 from utils.http_client import ScraperPool
 
 
@@ -217,6 +215,8 @@ def test_integration_queue_and_download(
         resolve_download_dir=lambda: temp_download_dir,
         ui_hooks=mock_ui_hooks,
     )
+    assert task.queue_id == 1
+    assert task.url == "https://example.com/chapter/1"
 
     # Simulate completion
     manager.complete_item(1, success=True)

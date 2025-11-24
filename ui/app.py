@@ -11,7 +11,6 @@ import tkinter as tk
 from collections.abc import Iterable
 from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 from functools import partial
-from numbers import Real
 from tkinter import filedialog, ttk
 from typing import Any, cast
 from urllib.parse import urlparse
@@ -29,7 +28,6 @@ from ui.models import STATUS_COLORS, QueueItem, SearchResult, SeriesChapter
 from ui.widgets import MouseWheelHandler, clamp_value
 from utils.file_utils import ensure_directory, get_default_download_root
 from utils.http_client import ScraperPool
-
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -1443,7 +1441,7 @@ class MangaDownloader(tk.Tk):
 
             # For Listbox and Text widgets, use unit scrolling with accumulation
             if not hasattr(self, "_scroll_remainders"):
-                self._scroll_remainders = {}
+                self._scroll_remainders: dict[tk.Misc, float] = {}
 
             # Accumulate fractional scrolling for smoother feel
             remainder = self._scroll_remainders.get(target, 0.0) + float(delta)

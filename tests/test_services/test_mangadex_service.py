@@ -84,7 +84,7 @@ def test_search_manga_blank_returns_empty() -> None:
 
 
 def test_search_manga_uses_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    payloads = [{"data": []}]
+    payloads: list[dict[str, list[object]]] = [{"data": []}]
     service = _service_with_payloads(payloads)
     service._rate_limit_delay = 0
     monkeypatch.setattr("time.sleep", lambda _: None)
@@ -135,6 +135,7 @@ def test_get_series_info_parses_metadata(monkeypatch: pytest.MonkeyPatch) -> Non
     assert info["title"] == "Series Title"
     assert info["description"] == "An epic description"
     attributes = info["attributes"]
+    assert isinstance(attributes, dict)
     assert attributes["Author(s)"] == ["Author One"]
     assert attributes["Artist(s)"] == ["Artist One"]
     assert attributes["Tags"] == ["Action", "Comedy"]
@@ -143,6 +144,7 @@ def test_get_series_info_parses_metadata(monkeypatch: pytest.MonkeyPatch) -> Non
     assert attributes["Year"] == 2024
 
     chapters = info["chapters"]
+    assert isinstance(chapters, list) and len(chapters) > 0
     assert chapters[0]["title"] == "Start"
     assert chapters[0]["label"] == "Vol. 2 - Ch. 1 - Start"
     assert chapters[0]["url"].endswith("/chap-1")

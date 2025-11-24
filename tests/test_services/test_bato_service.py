@@ -102,5 +102,6 @@ def test_get_series_info_extracts_metadata(monkeypatch: pytest.MonkeyPatch) -> N
     assert result["description"] == "A short description."
     assert result["attributes"] == {"Authors": "Author One", "Genres": ["Action", "Comedy"]}
     chapters = result["chapters"]
+    assert isinstance(chapters, list)
     assert [chapter["label"] for chapter in chapters] == ["Ch 1", "Ch 2"]
     assert chapters[0]["url"].endswith("/chapter/1")

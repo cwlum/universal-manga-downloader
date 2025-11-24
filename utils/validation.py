@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Pattern
+from re import Pattern
 from urllib.parse import urlparse
 
 # Comprehensive URL validation pattern
@@ -64,7 +64,7 @@ def validate_url(url: str, *, allow_empty: bool = False) -> str:
     except Exception as e:
         raise ValidationError(f"Failed to parse URL: {e}") from e
 
-    if not parsed.scheme in ("http", "https"):
+    if parsed.scheme not in ("http", "https"):
         raise ValidationError(f"URL must use http or https scheme, got: {parsed.scheme}")
 
     if not parsed.netloc:

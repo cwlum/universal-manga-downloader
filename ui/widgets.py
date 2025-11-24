@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import platform
 import tkinter as tk
-from typing import Callable
+from collections.abc import Callable
 
 
 class MouseWheelHandler:
