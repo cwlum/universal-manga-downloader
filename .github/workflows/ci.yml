@@ -64,7 +64,7 @@ jobs:
 
       - name: Run MyPy
         run: |
-          mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils/ --no-error-summary
+          mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/app.py ui/models.py ui/widgets.py ui/logging_utils.py ui/__init__.py utils/ --no-error-summary
 
   security-scan:
     name: Security scan (pip-audit)

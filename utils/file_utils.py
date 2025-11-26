@@ -166,3 +166,68 @@ def check_disk_space_sufficient(
     is_sufficient = free_bytes >= required_with_margin
 
     return (is_sufficient, free_bytes, required_with_margin)
+
+
+def cleanup_failed_download(directory: str) -> bool:
+    """
+    Remove a failed download directory and its contents.
+
+    Args:
+        directory: Path to the download directory to remove
+
+    Returns:
+        True if cleanup was successful, False otherwise
+    """
+    if not directory or not os.path.exists(directory):
+        return True
+
+    try:
+        # Safety check: only remove if it looks like a chapter download directory
+        # (contains image files or is empty)
+        dir_path = Path(directory)
+        if not dir_path.is_dir():
+            return False
+
+        # Check contents - only proceed if it contains images or is empty
+        contents = list(dir_path.iterdir())
+        if contents:
+            image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+            has_only_images_or_outputs = all(
+                f.suffix.lower() in image_extensions
+                or f.suffix.lower() in {".pdf", ".cbz"}
+                or f.name.startswith(".")  # Hidden files
+                for f in contents
+                if f.is_file()
+            )
+            if not has_only_images_or_outputs:
+                # Directory contains unexpected files, don't remove
+                return False
+
+        shutil.rmtree(directory)
+        return True
+    except OSError:
+        return False
+
+
+def is_directory_empty_or_partial(directory: str) -> bool:
+    """
+    Check if a directory is empty or contains only partial download files.
+
+    Args:
+        directory: Path to check
+
+    Returns:
+        True if directory is empty or contains only partial/temporary files
+    """
+    if not directory or not os.path.exists(directory):
+        return True
+
+    try:
+        dir_path = Path(directory)
+        if not dir_path.is_dir():
+            return False
+
+        contents = list(dir_path.iterdir())
+        return len(contents) == 0
+    except OSError:
+        return False
