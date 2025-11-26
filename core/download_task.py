@@ -20,6 +20,7 @@ from core.queue_manager import QueueState
 from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, compose_chapter_name
 from utils.file_utils import (
     check_disk_space_sufficient,
+    cleanup_failed_download,
     collect_image_files,
     determine_file_extension,
     ensure_directory,
@@ -28,6 +29,49 @@ from utils.file_utils import (
 from utils.http_client import ScraperPool
 
 logger = logging.getLogger(__name__)
+
+
+def _format_request_error(exc: requests.RequestException, url: str | None = None) -> str:
+    """Format a request exception into a user-friendly error message.
+
+    Includes HTTP status code, reason, and URL when available.
+    """
+    parts: list[str] = []
+
+    # Extract HTTP status code if available
+    if hasattr(exc, "response") and exc.response is not None:
+        status_code = exc.response.status_code
+        reason = exc.response.reason or "Unknown"
+        parts.append(f"HTTP {status_code} ({reason})")
+    elif isinstance(exc, requests.ConnectionError):
+        parts.append("Connection failed")
+    elif isinstance(exc, requests.Timeout):
+        parts.append("Request timed out")
+    elif isinstance(exc, requests.TooManyRedirects):
+        parts.append("Too many redirects")
+    else:
+        # Generic error message
+        error_type = type(exc).__name__
+        parts.append(error_type)
+
+    # Add the exception message if it provides useful info
+    exc_msg = str(exc)
+    if exc_msg and len(exc_msg) < 100:  # Avoid overly long messages
+        # Clean up common verbose messages
+        if "Max retries exceeded" in exc_msg:
+            parts.append("server unreachable")
+        elif exc_msg not in parts:
+            parts.append(exc_msg)
+
+    # Add URL context if provided and not already in message
+    if url and url not in " ".join(parts):
+        # Extract just the host for brevity
+        from urllib.parse import urlparse
+        host = urlparse(url).netloc
+        if host:
+            parts.append(f"({host})")
+
+    return " - ".join(parts) if len(parts) > 1 else parts[0] if parts else str(exc)
 
 
 @dataclass(slots=True)
@@ -65,6 +109,7 @@ class DownloadTask:
         ui_hooks: DownloadUIHooks,
         should_abort: Callable[[], bool] | None = None,
         wait_if_paused: Callable[[], object] | None = None,
+        cleanup_on_failure: bool = True,
     ) -> None:
         self.queue_id = queue_id
         self.url = url
@@ -77,6 +122,8 @@ class DownloadTask:
         self.ui = ui_hooks
         self._should_abort = should_abort
         self._wait_if_paused = wait_if_paused
+        self._cleanup_on_failure = cleanup_on_failure
+        self._current_download_dir: str | None = None
 
     def run(self) -> None:
         """Execute the download workflow."""
@@ -121,6 +168,8 @@ class DownloadTask:
                     )
                     return
 
+                self._current_download_dir = download_dir
+
                 failed = self._download_images(
                     scraper,
                     image_urls,
@@ -133,6 +182,7 @@ class DownloadTask:
                         "All image downloads failed.",
                         chapter_display,
                         status_message=f"Status: Failed to download images for {chapter_display}.",
+                        cleanup=True,
                     )
                     return
 
@@ -143,7 +193,7 @@ class DownloadTask:
                 }
                 conversions_ok = self._run_converters(download_dir, metadata, chapter_display)
                 if not conversions_ok:
-                    self._mark_failure("Conversion failed.", chapter_display)
+                    self._mark_failure("Conversion failed.", chapter_display, cleanup=True)
                     return
 
                 if failed:
@@ -161,13 +211,15 @@ class DownloadTask:
             self.ui.queue_set_status(self.queue_id, "Cancelled", QueueState.CANCELLED)
             self.ui.set_status(f"Status: Cancelled {chapter_display}.")
         except requests.RequestException as exc:
-            self.ui.queue_mark_finished(self.queue_id, False, f"Network error: {exc}")
-            self.ui.set_status(f"Status: Error - Failed to fetch {chapter_display}: {exc}")
+            error_detail = _format_request_error(exc, self.url)
+            self.ui.queue_mark_finished(self.queue_id, False, f"Network error: {error_detail}")
+            self.ui.set_status(f"Status: Failed to fetch {chapter_display} - {error_detail}")
             logger.exception("Network error while downloading %s", chapter_display)
             raise
         except Exception as exc:  # noqa: BLE001 - propagate unexpected failures
-            self.ui.queue_mark_finished(self.queue_id, False, f"Error: {exc}")
-            self.ui.set_status(f"Status: Error - Download failed for {chapter_display}: {exc}")
+            error_type = type(exc).__name__
+            self.ui.queue_mark_finished(self.queue_id, False, f"{error_type}: {exc}")
+            self.ui.set_status(f"Status: {chapter_display} failed - {error_type}: {exc}")
             logger.exception("Unhandled error while processing %s", chapter_display)
             raise
         finally:
@@ -204,11 +256,16 @@ class DownloadTask:
                     )
                     time.sleep(wait_time)
                 else:
-                    logger.error("Failed to fetch chapter page after %d attempts", max_retries + 1)
+                    error_detail = _format_request_error(exc, self.url)
+                    logger.error(
+                        "Failed to fetch chapter page after %d attempts: %s",
+                        max_retries + 1,
+                        error_detail,
+                    )
                     self._mark_failure(
-                        f"Network error after {max_retries + 1} attempts: {exc}",
+                        f"Network error after {max_retries + 1} attempts: {error_detail}",
                         display_label,
-                        status_message=f"Status: Failed to fetch {display_label} - {exc}"
+                        status_message=f"Status: Failed to fetch {display_label} - {error_detail}",
                     )
                     raise
 
@@ -514,12 +571,27 @@ class DownloadTask:
         chapter_display: str,
         *,
         status_message: str | None = None,
+        cleanup: bool = False,
     ) -> None:
+        if cleanup and self._cleanup_on_failure:
+            self._cleanup_download_dir()
         self.ui.queue_mark_finished(self.queue_id, False, message)
         if status_message is not None:
             self.ui.set_status(status_message)
         else:
             self.ui.set_status(f"Status: {chapter_display} • {message}")
+
+    def _cleanup_download_dir(self) -> None:
+        """Clean up the download directory if cleanup is enabled."""
+        if not self._current_download_dir:
+            return
+        if cleanup_failed_download(self._current_download_dir):
+            logger.info("Cleaned up failed download directory: %s", self._current_download_dir)
+        else:
+            logger.warning(
+                "Could not clean up failed download directory: %s",
+                self._current_download_dir,
+            )
 
     def _is_cancelled(self) -> bool:
         return bool(self._should_abort and self._should_abort())

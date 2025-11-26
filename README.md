@@ -1,22 +1,21 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.2-orange)
+![Version](https://img.shields.io/badge/version-1.3.3-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--24-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--26-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/cwlum/universal-manga-downloader)
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.2)
+## Highlights (v1.3.3)
 
-- Refactored UI components into modular structure for better maintainability
-- Enhanced security with input validation and circuit breaker patterns
-- Comprehensive test coverage with 105+ passing tests
-- Pre-commit hooks for automated code quality checks
-- Pinned dependencies for reproducible builds
-- Improved documentation with security policy and contribution guidelines
-- Fixed critical bugs in resource management and path traversal
+- **Major refactor**: Split monolithic UI into modular tab mixins for better maintainability
+- Download failure cleanup with safety checks to prevent leftover temporary files
+- Enhanced error messages with HTTP status codes and connection type details
+- Search debounce to prevent concurrent requests
+- Improved test coverage with 116 passing tests
+- Type annotations for mixin classes with MyPy compatibility
 
 ## Requirements
 
@@ -72,7 +71,8 @@ Common flags:
 | --- | --- |
 | `manga_downloader.py` | Thin wrapper launching the Tkinter app |
 | `umd_cli.py` | Console entry point with diagnostics and headless validation |
-| `ui/app.py` | GUI (Browser, Downloads, Settings tabs) and event wiring |
+| `ui/app.py` | Main GUI entry point orchestrating tab mixins |
+| `ui/tabs/` | Browser, Downloads, Settings tab implementations |
 | `core/` | Queue manager and download task orchestration |
 | `services/` | Bato and MangaDex helpers |
 | `plugins/` | Parser and converter plugins (auto-discovered) |

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2025-11-26
+
+### Added
+- Download failure cleanup functionality with safety checks (utils/file_utils.py)
+- Search debounce mechanism to prevent concurrent search requests
+- Enhanced error message formatting with HTTP status codes and connection types
+- 15+ new UI component unit tests covering business logic
+- Type annotations for mixin classes
+
+### Changed
+- **Major refactor**: Split monolithic `ui/app.py` (1544 lines) into modular mixins:
+  - `ui/tabs/browser_tab.py` (741 lines) - Search, series, chapter selection
+  - `ui/tabs/downloads_tab.py` (539 lines) - Queue management, progress display
+  - `ui/tabs/settings_tab.py` (196 lines) - Settings, plugin management
+  - `ui/app.py` reduced to 454 lines - Main entry point
+- Renamed `_pause_event` to `_can_proceed_event` for clearer semantics
+- Improved test coverage to 116 passing tests
+
+### Fixed
+- MyPy type checking compatibility for mixin pattern
+- Unused imports in test files and browser_tab.py
+
 ## [1.3.2] - 2025-11-24
 
 ### Added
@@ -119,7 +141,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.1...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...HEAD
+[1.3.3]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.2...v1.3.3
+[1.3.2]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.1...v1.3.2
 [1.3.1]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.0...v1.3.1
 [1.3.0]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.2.1...v1.3.0
 [1.2.1]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.2.0...v1.2.1
