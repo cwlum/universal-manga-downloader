@@ -6,7 +6,7 @@ import logging
 import tkinter as tk
 from functools import partial
 from tkinter import filedialog, ttk
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from config import CONFIG
 from plugins.base import PluginType
@@ -15,7 +15,7 @@ from utils.file_utils import get_default_download_root
 
 if TYPE_CHECKING:
     from plugins.base import PluginManager
-    from plugins.remote_manager import RemotePluginManager
+    from plugins.remote_manager import PreparedRemotePlugin, RemotePluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,10 @@ class SettingsTabMixin:
         self._plugin_settings_parent = plugin_section_parent
         self._plugin_container: ttk.LabelFrame | None = None
         self._remote_plugin_frame: ttk.LabelFrame | None = None
+        self._remote_plugins_tree: ttk.Treeview | None = None
+        self._whitelist_listbox: tk.Listbox | None = None
         self.remote_plugin_url_var = tk.StringVar()
+        self._whitelist_entry_var = tk.StringVar()
         self._build_plugin_settings(plugin_section_parent)
         self._build_remote_plugin_section(plugin_section_parent)
 
@@ -167,11 +170,36 @@ class SettingsTabMixin:
         entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
         ttk.Button(entry_row, text="Install", command=self._install_remote_plugin).pack(side="left")
 
-        tree = ttk.Treeview(frame, columns=("type", "source"), show="headings", height=5)
+        whitelist_frame = ttk.LabelFrame(frame, text="Allowed Sources")
+        whitelist_frame.pack(fill="x", padx=10, pady=(0, 8))
+        listbox = tk.Listbox(whitelist_frame, height=4)
+        listbox.pack(fill="x", padx=4, pady=4)
+        self._whitelist_listbox = listbox
+
+        whitelist_controls = ttk.Frame(whitelist_frame)
+        whitelist_controls.pack(fill="x", padx=4, pady=(0, 4))
+        entry = ttk.Entry(whitelist_controls, textvariable=self._whitelist_entry_var)
+        entry.pack(side="left", fill="x", expand=True)
+        ttk.Button(
+            whitelist_controls,
+            text="Add",
+            command=self._add_allowed_source,
+        ).pack(side="left", padx=(6, 0))
+        ttk.Button(
+            whitelist_controls,
+            text="Remove",
+            command=self._remove_allowed_source,
+        ).pack(side="left", padx=(6, 0))
+
+        tree = ttk.Treeview(frame, columns=("name", "type", "version", "source"), show="headings", height=6)
+        tree.heading("name", text="Plugin")
         tree.heading("type", text="Type")
+        tree.heading("version", text="Version")
         tree.heading("source", text="Source URL")
-        tree.column("type", width=80, anchor="center")
-        tree.column("source", width=300, anchor="w")
+        tree.column("name", width=160, anchor="w")
+        tree.column("type", width=70, anchor="center")
+        tree.column("version", width=80, anchor="center")
+        tree.column("source", width=260, anchor="w")
         tree.pack(fill="both", expand=True, padx=10, pady=4)
         self._remote_plugins_tree = tree
 
@@ -185,6 +213,7 @@ class SettingsTabMixin:
         )
 
         self._refresh_remote_plugin_list()
+        self._refresh_whitelist_ui()
 
     def _refresh_plugin_settings_ui(self) -> None:
         parent = getattr(self, "_plugin_settings_parent", None)
@@ -199,11 +228,29 @@ class SettingsTabMixin:
         for item in tree.get_children():
             tree.delete(item)
         for record in self.remote_plugin_manager.list_installed():
-            tree.insert("", "end", iid=record["name"], values=(record["plugin_type"], record["source_url"]))
+            tree.insert(
+                "",
+                "end",
+                iid=record["name"],
+                values=(
+                    record["display_name"],
+                    record["plugin_type"],
+                    record["version"],
+                    record["source_url"],
+                ),
+            )
 
     def _install_remote_plugin(self) -> None:
         url = self.remote_plugin_url_var.get().strip()
-        success, message = self.remote_plugin_manager.install_from_url(url)
+        success, prepared, message = self.remote_plugin_manager.prepare_install(url)
+        if message:
+            self._set_status(f"Status: {message}")
+        if not success or prepared is None:
+            return
+        if not self._show_remote_plugin_preview(prepared):
+            self._set_status("Status: 安装已取消。")
+            return
+        success, message = self.remote_plugin_manager.commit_install(prepared)
         self._set_status(f"Status: {message}")
         if not success:
             return
@@ -232,6 +279,100 @@ class SettingsTabMixin:
             self.plugin_manager.set_enabled(plugin_type, plugin_name, False)
         self._refresh_plugin_settings_ui()
         self._refresh_remote_plugin_list()
+        self._refresh_whitelist_ui()
+
+    def _refresh_whitelist_ui(self) -> None:
+        listbox = getattr(self, "_whitelist_listbox", None)
+        if listbox is None:
+            return
+        listbox.delete(0, tk.END)
+        for prefix in self.remote_plugin_manager.list_allowed_sources():
+            listbox.insert(tk.END, prefix)
+
+    def _add_allowed_source(self) -> None:
+        prefix = self._whitelist_entry_var.get().strip()
+        success, message = self.remote_plugin_manager.add_allowed_source(prefix)
+        self._set_status(f"Status: {message}")
+        if success:
+            self._whitelist_entry_var.set("")
+            self._refresh_whitelist_ui()
+
+    def _remove_allowed_source(self) -> None:
+        listbox = getattr(self, "_whitelist_listbox", None)
+        if listbox is None:
+            return
+        selection = listbox.curselection()
+        if not selection:
+            self._set_status("Status: 请选择要移除的来源。")
+            return
+        prefix = listbox.get(selection[0])
+        success, message = self.remote_plugin_manager.remove_allowed_source(prefix)
+        self._set_status(f"Status: {message}")
+        if success:
+            self._refresh_whitelist_ui()
+
+    def _show_remote_plugin_preview(self, prepared: PreparedRemotePlugin) -> bool:
+        master = cast(tk.Misc, self)
+        window = tk.Toplevel(master)
+        window.title("插件信息预览")
+        window.grab_set()
+
+        metadata = prepared.metadata
+        validation = prepared.validation
+        display_name = metadata.get("name") or validation.plugin_name or "Unnamed"
+        author = metadata.get("author", "Unknown")
+        version = metadata.get("version", "0.0.0")
+        description = metadata.get("description", "")
+        dependencies = metadata.get("dependencies", [])
+
+        body = ttk.Frame(window, padding=12)
+        body.pack(fill="both", expand=True)
+
+        rows = [
+            ("Name", display_name),
+            ("Class", validation.plugin_name or ""),
+            ("Type", validation.plugin_type or ""),
+            ("Version", version),
+            ("Author", author),
+            ("Source", prepared.url),
+            ("Checksum", prepared.checksum[:32] + "…"),
+        ]
+        for label, value in rows:
+            row = ttk.Frame(body)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=f"{label}:", width=10, anchor="w").pack(side="left")
+            ttk.Label(row, text=value, wraplength=360, justify="left").pack(
+                side="left", fill="x", expand=True
+            )
+
+        if description:
+            ttk.Label(body, text="Description:", anchor="w").pack(fill="x", pady=(8, 0))
+            desc_label = ttk.Label(body, text=description, wraplength=380, justify="left")
+            desc_label.pack(fill="x")
+
+        if dependencies:
+            ttk.Label(body, text="Dependencies:").pack(anchor="w", pady=(8, 0))
+            dep_text = "\n".join(f"• {dep}" for dep in dependencies)
+            ttk.Label(body, text=dep_text, justify="left", wraplength=380).pack(anchor="w")
+        else:
+            ttk.Label(body, text="Dependencies: None").pack(anchor="w", pady=(8, 0))
+
+        button_row = ttk.Frame(body)
+        button_row.pack(fill="x", pady=(12, 0))
+        confirmed = {"result": False}
+
+        def _accept() -> None:
+            confirmed["result"] = True
+            window.destroy()
+
+        def _cancel() -> None:
+            window.destroy()
+
+        ttk.Button(button_row, text="Install", command=_accept).pack(side="left")
+        ttk.Button(button_row, text="Cancel", command=_cancel).pack(side="right")
+
+        master.wait_window(window)
+        return bool(confirmed["result"])
 
     def _on_plugin_toggle(self, plugin_type: PluginType, plugin_name: str) -> None:
         """Respond to plugin enable/disable events from the UI."""

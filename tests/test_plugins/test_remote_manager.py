@@ -7,7 +7,33 @@ import pytest
 
 from plugins.remote_manager import RemotePluginManager
 
-PLUGIN_CODE = """from __future__ import annotations\n\nfrom plugins.base import BasePlugin, ParsedChapter\n\nclass RemoteSampleParser(BasePlugin):\n    def get_name(self) -> str:\n        return \"RemoteSample\"\n\n    def can_handle(self, url: str) -> bool:\n        return \"remote-sample\" in url\n\n    def parse(self, soup, url: str) -> ParsedChapter | None:  # pragma: no cover - demo plugin\n        return None\n"""
+PLUGIN_CODE = '''"""
+Universal Manga Downloader Plugin
+
+Name: Remote Sample Parser
+Author: Test Author
+Version: 1.2.3
+Description: Example remote parser for tests.
+Repository: https://github.com/example/repo
+License: MIT
+Dependencies: Pillow>=10
+"""
+
+from __future__ import annotations
+
+from plugins.base import BasePlugin, ParsedChapter
+
+
+class RemoteSampleParser(BasePlugin):
+    def get_name(self) -> str:
+        return "RemoteSample"
+
+    def can_handle(self, url: str) -> bool:
+        return "remote-sample" in url
+
+    def parse(self, soup, url: str) -> ParsedChapter | None:  # pragma: no cover - demo plugin
+        return None
+'''
 
 
 class DummyResponse:
@@ -31,15 +57,21 @@ def _mock_urlopen(payload: str) -> Callable[[str, int], DummyResponse]:
     return _open
 
 
-def test_install_remote_plugin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    manager = RemotePluginManager(tmp_path)
+def test_prepare_and_commit_remote_plugin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
     monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(PLUGIN_CODE))
-    success, message = manager.install_from_url(
+    ok, prepared, message = manager.prepare_install(
         "https://raw.githubusercontent.com/org/repo/main/remote_sample.py"
     )
-    assert success, message
+    assert ok, message
+    assert prepared is not None
+    assert prepared.metadata["name"] == "Remote Sample Parser"
+    ok, message = manager.commit_install(prepared)
+    assert ok, message
     registry = manager.list_installed()
-    assert registry and registry[0]["name"] == "RemoteSampleParser"
+    assert registry and registry[0]["display_name"] == "Remote Sample Parser"
+    assert registry[0]["version"] == "1.2.3"
+    assert registry[0]["dependencies"] == ["Pillow>=10"]
     assert (tmp_path / "remote_sample.py").exists()
 
 
@@ -51,7 +83,7 @@ def test_install_rejects_invalid_url(tmp_path: Path) -> None:
 
 
 def test_uninstall_removes_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    manager = RemotePluginManager(tmp_path)
+    manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
     monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(PLUGIN_CODE))
     success, _ = manager.install_from_url(
         "https://raw.githubusercontent.com/org/repo/main/remote_sample.py"
@@ -61,3 +93,22 @@ def test_uninstall_removes_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     assert success
     assert manager.list_installed() == []
     assert not (tmp_path / "remote_sample.py").exists()
+
+
+def test_disallows_unapproved_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path)
+    monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(PLUGIN_CODE))
+    success, _, message = manager.prepare_install(
+        "https://raw.githubusercontent.com/other/repo/main/remote_sample.py"
+    )
+    assert not success
+    assert "白名单" in message
+
+
+def test_whitelist_management(tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path)
+    success, message = manager.add_allowed_source("https://raw.githubusercontent.com/org/repo")
+    assert success, message
+    assert any(prefix.startswith("https://raw.githubusercontent.com/org/repo") for prefix in manager.list_allowed_sources())
+    success, message = manager.remove_allowed_source("https://raw.githubusercontent.com/umd-plugins/official/")
+    assert not success  # default source cannot be removed

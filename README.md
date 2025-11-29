@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.5-orange)
+![Version](https://img.shields.io/badge/version-1.3.6-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
@@ -8,13 +8,12 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.5)
+## Highlights (v1.3.6)
 
-- **Remote plugin manager (v0.1)** — install parser/converter plugins directly from GitHub Raw URLs with on-disk registry tracking.
-- **Settings → Remote Plugins** — Tkinter UI to paste URLs, install, refresh, and uninstall remote contributions without restarting.
-- **Official plugin repository scaffold** — `plugin_repository/official` ships the GitHub Pages/wiki structure (README, scripts, workflows, example plugins).
-- Added documentation (`docs/REMOTE_PLUGINS.md`, roadmap updates) describing phased rollout and trusted sources.
-- Version bump plus fresh tests ensure the remote manager works across macOS/Windows before expanding to future phases.
+- **Remote plugin manager v0.2** — registry schema v2 tracks display names, versions, checksums, dependencies, and source whitelists.
+- **Settings → Remote Plugins** now includes an Allowed Sources list plus an install preview dialog (metadata + checksum) before committing files.
+- **Metadata utilities** (`plugins/metadata_parser.py`) shared by the installer and plugin-repo scripts ensure docstrings stay structured.
+- Documentation (README, `docs/REMOTE_PLUGINS.md`, roadmap) updated to cover the new workflow and whitelist management.
 
 ## Requirements
 
@@ -82,8 +81,8 @@ Common flags:
 ## Remote Plugins (Beta)
 
 - Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is).
-- Copy the **Raw** URL of any plugin and install via Settings → Remote Plugins.
-- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for security tips.
+- Use Settings → Remote Plugins to manage the whitelist, preview metadata (name, version, dependencies), and install/uninstall community plugins.
+- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for safety tips and troubleshooting.
 
 ## Troubleshooting
 

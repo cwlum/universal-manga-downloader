@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.6] - 2025-11-29
+
+### Added
+- Registry schema v2 with metadata (display name, version, checksum, dependencies) and source whitelist tracking.
+- Tkinter Remote Plugins UI now shows an install preview dialog and "Allowed Sources" list with add/remove controls.
+- `plugins/metadata_parser.py` shared helper extracts metadata fields for the installer and plugin repository tooling.
+
+### Changed
+- README / documentation updated to describe the new whitelist workflow and preview dialog.
+- Roadmap/structure docs mark v0.2 completed and baseline bumped to v1.3.6.
+
+### Fixed
+- Additional pytest coverage for the remote manager covering metadata, whitelist, and upgrade paths.
+
 ## [1.3.5] - 2025-11-29
 
 ### Added
@@ -169,7 +183,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...HEAD
+[1.3.6]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...v1.3.6
 [1.3.5]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...v1.3.5
 [1.3.4]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...v1.3.4
 [1.3.3]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.2...v1.3.3
