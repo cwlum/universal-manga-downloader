@@ -19,3 +19,33 @@ dist/
 
 # Coverage artifacts
 .coverage
+
+# Remote plugins (user-downloaded plugins via Remote Plugin system)
+# These files are managed by users and should not be committed
+plugins/plugin_registry.json
+plugins/remote_sources.json
+plugins/plugin_repositories.json
+plugins/remote_history/
+
+# Ignore all plugins except official ones (whitelist approach)
+# This prevents user-downloaded remote plugins from being committed
+plugins/*.py
+!plugins/__init__.py
+!plugins/base.py
+!plugins/bato_parser.py
+!plugins/cbz_converter.py
+!plugins/dependency_manager.py
+!plugins/mangadex_parser.py
+!plugins/metadata_parser.py
+!plugins/pdf_converter.py
+!plugins/remote_manager.py
+!plugins/repository_manager.py
+!plugins/version_manager.py
+
+# Ignore plugin directories (for multi-file remote plugins)
+# But don't accidentally re-include __pycache__
+plugins/*/
+
+# Downloaded user data
+downloads/
+output/
