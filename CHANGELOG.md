@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.7] - 2025-11-29
+
+### Added
+- Version comparison and remote update pipeline (`plugins/version_manager.py` + `RemotePluginManager.check_updates/update_plugin`).
+- Settings → Remote Plugins now exposes “Allowed Sources”, “Check Updates”, “Update Selected”, and row highlighting for outdated plugins.
+
+### Changed
+- Registry schema v2 entries persist display name/version/checksum/dependencies used for update decisions.
+- Documentation (README, Remote Plugin Guide, roadmap) updated for the v0.3 workflow.
+
+### Fixed
+- Additional tests (`tests/test_plugins/test_remote_manager.py`) cover whitelist management and update flows to prevent regressions.
+
 ## [1.3.6] - 2025-11-29
 
 ### Added
@@ -183,7 +196,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...HEAD
+[1.3.7]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...v1.3.7
 [1.3.6]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...v1.3.6
 [1.3.5]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...v1.3.5
 [1.3.4]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...v1.3.4

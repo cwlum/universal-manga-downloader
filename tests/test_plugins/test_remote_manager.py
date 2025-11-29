@@ -36,6 +36,9 @@ class RemoteSampleParser(BasePlugin):
 '''
 
 
+UPDATED_PLUGIN_CODE = PLUGIN_CODE.replace("Version: 1.2.3", "Version: 2.0.0")
+
+
 class DummyResponse:
     def __init__(self, payload: str) -> None:
         self._payload = payload.encode("utf-8")
@@ -55,6 +58,20 @@ def _mock_urlopen(payload: str) -> Callable[[str, int], DummyResponse]:
         return DummyResponse(payload)
 
     return _open
+
+
+class SequentialOpener:
+    def __init__(self, payloads: list[str]) -> None:
+        self._payloads = payloads
+        self._cursor = 0
+
+    def __call__(self, _url: str, timeout: int = 30) -> DummyResponse:  # pragma: no cover - deterministic
+        if self._cursor >= len(self._payloads):
+            payload = self._payloads[-1]
+        else:
+            payload = self._payloads[self._cursor]
+        self._cursor += 1
+        return DummyResponse(payload)
 
 
 def test_prepare_and_commit_remote_plugin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -112,3 +129,23 @@ def test_whitelist_management(tmp_path: Path) -> None:
     assert any(prefix.startswith("https://raw.githubusercontent.com/org/repo") for prefix in manager.list_allowed_sources())
     success, message = manager.remove_allowed_source("https://raw.githubusercontent.com/umd-plugins/official/")
     assert not success  # default source cannot be removed
+
+
+def test_check_updates_and_update(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
+    opener = SequentialOpener([PLUGIN_CODE, UPDATED_PLUGIN_CODE, UPDATED_PLUGIN_CODE])
+    monkeypatch.setattr("plugins.remote_manager.urlopen", opener)
+
+    ok, prepared, _ = manager.prepare_install("https://raw.githubusercontent.com/org/repo/main/remote_sample.py")
+    assert ok and prepared
+    ok, _ = manager.commit_install(prepared)
+    assert ok
+
+    updates = manager.check_updates()
+    assert updates and updates[0]["latest"] == "2.0.0"
+
+    success, message = manager.update_plugin("RemoteSampleParser")
+    assert success, message
+    record = manager.get_record("RemoteSampleParser")
+    assert record is not None
+    assert record["version"] == "2.0.0"

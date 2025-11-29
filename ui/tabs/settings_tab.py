@@ -102,6 +102,7 @@ class SettingsTabMixin:
         self._whitelist_listbox: tk.Listbox | None = None
         self.remote_plugin_url_var = tk.StringVar()
         self._whitelist_entry_var = tk.StringVar()
+        self._pending_updates: set[str] = set()
         self._build_plugin_settings(plugin_section_parent)
         self._build_remote_plugin_section(plugin_section_parent)
 
@@ -211,6 +212,12 @@ class SettingsTabMixin:
         ttk.Button(action_row, text="Refresh", command=self._refresh_remote_plugin_list).pack(
             side="left", padx=(6, 0)
         )
+        ttk.Button(action_row, text="Check Updates", command=self._check_remote_updates).pack(
+            side="left", padx=(6, 0)
+        )
+        ttk.Button(action_row, text="Update Selected", command=self._update_remote_plugin).pack(
+            side="left", padx=(6, 0)
+        )
 
         self._refresh_remote_plugin_list()
         self._refresh_whitelist_ui()
@@ -227,7 +234,9 @@ class SettingsTabMixin:
             return
         for item in tree.get_children():
             tree.delete(item)
+        tree.tag_configure("update", background="#2b1a1a")
         for record in self.remote_plugin_manager.list_installed():
+            tags = ("update",) if record["name"] in getattr(self, "_pending_updates", set()) else ()
             tree.insert(
                 "",
                 "end",
@@ -238,6 +247,7 @@ class SettingsTabMixin:
                     record["version"],
                     record["source_url"],
                 ),
+                tags=tags,
             )
 
     def _install_remote_plugin(self) -> None:
@@ -280,6 +290,35 @@ class SettingsTabMixin:
         self._refresh_plugin_settings_ui()
         self._refresh_remote_plugin_list()
         self._refresh_whitelist_ui()
+
+    def _check_remote_updates(self) -> None:
+        updates = self.remote_plugin_manager.check_updates()
+        if not updates:
+            self._pending_updates.clear()
+            self._set_status("Status: 所有插件均为最新版本。")
+            self._refresh_remote_plugin_list()
+            return
+        self._pending_updates = {update["name"] for update in updates}
+        summary = ", ".join(f"{item['display_name']} ({item['current']}→{item['latest']})" for item in updates)
+        self._set_status(f"Status: 发现更新 {summary}")
+        self._refresh_remote_plugin_list()
+
+    def _update_remote_plugin(self) -> None:
+        tree = getattr(self, "_remote_plugins_tree", None)
+        if tree is None:
+            return
+        selection = tree.selection()
+        if not selection:
+            self._set_status("Status: 请选择要更新的插件。")
+            return
+        plugin_name = selection[0]
+        success, message = self.remote_plugin_manager.update_plugin(plugin_name)
+        self._set_status(f"Status: {message}")
+        if success:
+            self.plugin_manager.load_plugins()
+            self._pending_updates.discard(plugin_name)
+            self._refresh_plugin_settings_ui()
+            self._refresh_remote_plugin_list()
 
     def _refresh_whitelist_ui(self) -> None:
         listbox = getattr(self, "_whitelist_listbox", None)

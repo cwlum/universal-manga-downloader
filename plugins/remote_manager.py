@@ -14,6 +14,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from plugins.metadata_parser import PluginMetadata, calculate_checksum, parse_plugin_metadata
+from plugins.version_manager import compare_versions
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,13 @@ class RemotePluginRecord(TypedDict):
 class RemoteRegistryPayload(TypedDict):
     schema_version: int
     entries: list[RemotePluginRecord]
+
+
+class UpdateInfo(TypedDict):
+    name: str
+    display_name: str
+    current: str
+    latest: str
 
 
 @dataclass(slots=True)
@@ -119,6 +127,12 @@ class RemotePluginManager:
 
         return list(self._registry)
 
+    def get_record(self, plugin_name: str) -> RemotePluginRecord | None:
+        for record in self._registry:
+            if record["name"] == plugin_name:
+                return record
+        return None
+
     def list_allowed_sources(self) -> list[str]:
         return list(self._allowed_sources)
 
@@ -190,7 +204,7 @@ class RemotePluginManager:
         )
         return True, prepared, ""
 
-    def commit_install(self, prepared: PreparedRemotePlugin) -> tuple[bool, str]:
+    def commit_install(self, prepared: PreparedRemotePlugin, *, replace_existing: bool = False) -> tuple[bool, str]:
         validation = prepared.validation
         assert validation.plugin_name is not None
         assert validation.plugin_type is not None
@@ -200,7 +214,9 @@ class RemotePluginManager:
             filename = f"{filename}.py"
         file_path = self._plugin_dir / filename
         if self._is_installed(validation.plugin_name):
-            return False, f"插件 {validation.plugin_name} 已安装"
+            if not replace_existing:
+                return False, f"插件 {validation.plugin_name} 已安装"
+            self._remove_record(validation.plugin_name)
 
         metadata = dict(prepared.metadata)
         display_name = str(metadata.get("name") or validation.plugin_name or "Unnamed")
@@ -252,6 +268,34 @@ class RemotePluginManager:
         self._save_registry()
         return True, f"已卸载 {plugin_name}"
 
+    def check_updates(self) -> list[UpdateInfo]:
+        updates: list[UpdateInfo] = []
+        for record in self._registry:
+            latest_version = self._fetch_remote_version(record["source_url"])
+            if latest_version is None:
+                continue
+            comparison = compare_versions(record["version"], latest_version)
+            if comparison <= 0:
+                continue
+            updates.append(
+                UpdateInfo(
+                    name=record["name"],
+                    display_name=record["display_name"],
+                    current=record["version"],
+                    latest=latest_version,
+                )
+            )
+        return updates
+
+    def update_plugin(self, plugin_name: str) -> tuple[bool, str]:
+        record = self.get_record(plugin_name)
+        if record is None:
+            return False, "未找到插件"
+        success, prepared, message = self.prepare_install(record["source_url"])
+        if not success or prepared is None:
+            return False, message
+        return self.commit_install(prepared, replace_existing=True)
+
     # --- Validation helpers ---
 
     def _download(self, url: str) -> str:
@@ -285,6 +329,21 @@ class RemotePluginManager:
 
     def _is_installed(self, plugin_name: str) -> bool:
         return any(record["name"] == plugin_name for record in self._registry)
+
+    def _remove_record(self, plugin_name: str) -> None:
+        self._registry = [record for record in self._registry if record["name"] != plugin_name]
+
+    def _fetch_remote_version(self, url: str) -> str | None:
+        try:
+            code = self._download(url)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to fetch remote version from %s: %s", url, exc)
+            return None
+        metadata = parse_plugin_metadata(code)
+        version_value = metadata.get("version")
+        if isinstance(version_value, str) and version_value.strip():
+            return version_value.strip()
+        return None
 
     def _normalize_record(self, raw_entry: dict[str, object]) -> RemotePluginRecord | None:
         if {"name", "plugin_type", "source_url", "install_date", "file_path"}.issubset(raw_entry):
