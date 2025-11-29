@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.4-orange)
+![Version](https://img.shields.io/badge/version-1.3.5-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
@@ -8,13 +8,13 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.4)
+## Highlights (v1.3.5)
 
-- **IPv6-safe networking** — new proxy sanitization makes Bato/MangaDex searches work even when macOS injects `http://::1:6152`.
-- Auto-update now inherits the sanitized proxy environment so `umd --auto-update` can run behind loopback proxies.
-- Shared HTTP helper ensures both CloudScraper and `requests` sessions disable `trust_env` and reuse the same proxy settings.
-- Added targeted regression tests (HTTP helpers, CLI auto-update, MangaDex service) to protect the new plumbing.
-- Documentation, changelog, and release metadata refreshed for 1.3.4.
+- **Remote plugin manager (v0.1)** — install parser/converter plugins directly from GitHub Raw URLs with on-disk registry tracking.
+- **Settings → Remote Plugins** — Tkinter UI to paste URLs, install, refresh, and uninstall remote contributions without restarting.
+- **Official plugin repository scaffold** — `plugin_repository/official` ships the GitHub Pages/wiki structure (README, scripts, workflows, example plugins).
+- Added documentation (`docs/REMOTE_PLUGINS.md`, roadmap updates) describing phased rollout and trusted sources.
+- Version bump plus fresh tests ensure the remote manager works across macOS/Windows before expanding to future phases.
 
 ## Requirements
 
@@ -78,6 +78,12 @@ Common flags:
 | `utils/` | File and HTTP helpers |
 | `config.py` | Frozen dataclass configuration (`CONFIG`) |
 | `tests/` | Pytest suites for queueing, downloads, and plugins |
+
+## Remote Plugins (Beta)
+
+- Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is).
+- Copy the **Raw** URL of any plugin and install via Settings → Remote Plugins.
+- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for security tips.
 
 ## Troubleshooting
 

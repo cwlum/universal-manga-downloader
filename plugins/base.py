@@ -218,6 +218,12 @@ class PluginManager:
         self._records: list[PluginRecord] = []
         self._record_index: dict[tuple[PluginType, str], PluginRecord] = {}
 
+    @property
+    def plugin_dir(self) -> Path:
+        """Return the directory used for plugin discovery."""
+
+        return self._plugin_dir
+
     def load_plugins(self) -> None:
         """Discover plugins via the configured loader and instantiate them."""
 
