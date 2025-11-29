@@ -22,6 +22,8 @@ class FakeSession:
     def __init__(self, payloads: list[object]) -> None:
         self.payloads = list(payloads)
         self.calls: list[tuple[str, object | None, object | None]] = []
+        self.proxies: dict[str, str] = {}
+        self.trust_env = True
 
     def get(self, url: str, params: object | None = None, timeout: object | None = None) -> FakeResponse:
         self.calls.append((url, params, timeout))

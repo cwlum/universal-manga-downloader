@@ -25,6 +25,8 @@ class FakeSession:
     def __init__(self, payloads: list[Any]) -> None:
         self.payloads = list(payloads)
         self.calls: list[tuple[str, Any, Any]] = []
+        self.proxies: dict[str, str] = {}
+        self.trust_env = True
 
     def get(self, url: str, params: Any | None = None, timeout: Any | None = None) -> FakeResponse:
         self.calls.append((url, params, timeout))
@@ -35,6 +37,22 @@ class FakeSession:
 
 def _service_with_payloads(payloads: list[Any]) -> MangaDexService:
     return MangaDexService(session=FakeSession(payloads))
+
+
+def test_mangadex_service_uses_configured_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    sentinel = FakeSession([])
+    calls: list[FakeSession | None] = []
+
+    def fake_configure(session=None):
+        calls.append(session)
+        return sentinel
+
+    monkeypatch.setattr("services.mangadex_service.configure_requests_session", fake_configure)
+
+    service = MangaDexService()
+
+    assert service._session is sentinel  # type: ignore[attr-defined]
+    assert len(calls) == 1
 
 
 def test_search_manga_returns_results(monkeypatch: pytest.MonkeyPatch) -> None:
