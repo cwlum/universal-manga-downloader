@@ -3,16 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from importlib import metadata, util
 from pathlib import Path
 from typing import Any
 
 from manga_downloader import configure_logging
 from manga_downloader import main as launch_gui
+from utils.http_client import get_sanitized_proxies
 
 MINIMUM_PYTHON = (3, 11)
 REQUIRED_MODULES: list[tuple[str, str]] = [
@@ -339,7 +341,8 @@ def run_auto_update() -> bool:
         print(f"  ✗ Unable to determine update command: {exc}")
         return False
 
-    result = subprocess.run(cmd, check=False)  # noqa: S603,S607 - trusted command selection
+    env = _build_update_environment()
+    result = subprocess.run(cmd, check=False, env=env)  # noqa: S603,S607 - trusted command selection
     if result.returncode == 0:
         print("  ✓ Update complete.")
         return True
@@ -358,6 +361,19 @@ def _build_update_command(package_spec: str) -> list[str]:
         raise RuntimeError("Unable to locate active Python executable.")
 
     return [python_executable, "-m", "pip", "install", "--upgrade", package_spec]
+
+
+def _build_update_environment(base_env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return an environment with sanitized proxy variables for pip upgrades."""
+
+    env = dict(base_env) if base_env is not None else os.environ.copy()
+    proxies = get_sanitized_proxies()
+    for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+        env.pop(key, None)
+    for scheme, value in proxies.items():
+        env[f"{scheme}_proxy"] = value
+        env[f"{scheme.upper()}_PROXY"] = value
+    return env
 
 
 def _running_inside_pipx() -> bool:

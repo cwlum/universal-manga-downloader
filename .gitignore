@@ -16,3 +16,6 @@ venv/
 build/
 dist/
 *.egg-info/
+
+# Coverage artifacts
+.coverage

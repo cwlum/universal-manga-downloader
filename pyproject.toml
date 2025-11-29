@@ -1,6 +1,6 @@
 [project]
 name = "universal-manga-downloader"
-version = "1.3.3"
+version = "1.3.4"
 description = "A universal manga downloader with enhanced stability and performance."
 dependencies = [
     "requests",
