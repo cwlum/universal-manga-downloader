@@ -2,6 +2,20 @@
 
 Universal Manga Downloader v1.3.9 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Safety Checklist](#safety-checklist)
+- [Registry, History & Bundles](#registry-history--bundles)
+- [Plugin Market (Preview)](#plugin-market-preview)
+- [CLI Management](#cli-management)
+- [Troubleshooting](#troubleshooting)
+- [Removing Plugins](#removing-plugins)
+- [Allowed Sources](#allowed-sources)
+- [Updating, Dependencies & Rolling Back](#updating-dependencies--rolling-back)
+
+---
+
 ## Quick Start
 
 1. **Find a plugin** – either browse the official repo (`plugin_repository/official`) or open **Settings → Plugin Market (Preview)** and click **Sync Repositories** to fetch the curated index.
