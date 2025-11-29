@@ -72,18 +72,24 @@ Common flags:
 | `ui/tabs/` | Browser, Downloads, Settings tab implementations |
 | `core/` | Queue manager and download task orchestration |
 | `services/` | Bato and MangaDex helpers |
-| `plugins/` | Parser and converter plugins (auto-discovered) |
+| `plugins/` | Official built-in parser and converter plugins (bundled) |
+| `community-plugins/` | Community plugin repository (for developers; users install via Remote Plugins) |
 | `utils/` | File and HTTP helpers |
 | `config.py` | Frozen dataclass configuration (`CONFIG`) |
 | `tests/` | Pytest suites for queueing, downloads, and plugins |
 
+**Note for users:** When you clone the repository, `plugins/` contains official built-in plugins that work out of the box. The `community-plugins/` directory is for developers who want to contribute plugins—you don't need to interact with it directly. Install community plugins via Settings → Remote Plugins instead.
+
 ## Community Plugins
+
+UMD has a vibrant ecosystem of community-contributed parsers and converters available via the Remote Plugin system.
 
 - **Browse**: Visit the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available community plugins with descriptions and installation URLs.
 - **Install**: Settings → Remote Plugins lets you paste a GitHub raw URL to install parsers or converters; the **Plugin Market (Preview)** panel syncs/searches the official index.
 - **CLI**: Run `umd plugins list/install/update --all/history/rollback/install-deps` for headless workflows.
+- **Develop**: Want to create your own plugin? See [PLUGINS.md](PLUGINS.md) for the development guide.
 - **Submit**: Follow the [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) to contribute your own plugins via PR to `community-plugins/`.
-- **See also**: [WIKI_BASED_PLUGIN_REPOSITORY.md](WIKI_BASED_PLUGIN_REPOSITORY.md) for the simplified wiki-based architecture.
+- **Architecture**: See [WIKI_BASED_PLUGIN_REPOSITORY.md](WIKI_BASED_PLUGIN_REPOSITORY.md) for how the community plugin repository works.
 
 ## Troubleshooting
 
