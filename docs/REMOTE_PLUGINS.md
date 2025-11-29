@@ -1,13 +1,14 @@
 # Remote Plugin Installation Guide
 
-Universal Manga Downloader v1.3.6 introduces the enhanced remote plugin workflow (metadata preview and whitelists). Follow these steps to safely install community plugins.
+Universal Manga Downloader v1.3.7 introduces the enhanced remote plugin workflow (metadata preview, whitelists, and update management). Follow these steps to safely install community plugins.
 
 ## Quick Start
 
 1. **Find a plugin** – browse the official template under `plugin_repository/official` or the hosted GitHub repository.
 2. **Copy the raw URL** – it must begin with `https://raw.githubusercontent.com/` and belong to a whitelisted source.
 3. **Open the app** – Settings → Remote Plugins (Beta).
-4. **Paste & install** – enter the URL, click **Install**; you will see a metadata preview dialog before the plugin is committed.
+4. **Paste & install** – enter the URL, click **Install**; preview the metadata and confirm.
+5. **Check updates** – use the **Check Updates** button to discover newer versions and **Update Selected** to apply them.
 
 ## Safety Checklist
 
@@ -28,6 +29,7 @@ Universal Manga Downloader v1.3.6 introduces the enhanced remote plugin workflow
 | --- | --- |
 | "仅支持 raw.githubusercontent.com 链接" | Copy the **Raw** link from GitHub. |
 | "该来源不在白名单" | Add the prefix to **Allowed Sources** in Settings, then retry. |
+| "所有插件均为最新版本" | Appears after **Check Updates** completes with no newer versions. |
 | Download timeout | Check proxy settings or retry with a stable network. |
 | Plugin not visible after install | Click **Refresh** in Remote Plugins or restart the app. |
 | Unable to uninstall | Ensure the plugin isn't selected in another task, then retry from Settings. |
@@ -43,5 +45,11 @@ Universal Manga Downloader v1.3.6 introduces the enhanced remote plugin workflow
 - Manage the whitelist via Settings → Remote Plugins → Allowed Sources.
 - Default entry: `https://raw.githubusercontent.com/umd-plugins/official/`.
 - Adding new entries requires the same host (`raw.githubusercontent.com`).
+
+## Updating Plugins
+
+- Click **Check Updates** to fetch metadata from each installed plugin; rows with updates turn shaded.
+- Select a plugin and click **Update Selected** to re-download and replace it in-place.
+- Update flow reuses the same preview/validation pipeline, so incompatible plugins won’t overwrite the working version.
 
 For repository maintainers, see `PLUGIN_REPOSITORY_STRUCTURE.md` for publishing workflows.

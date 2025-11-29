@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.6-orange)
+![Version](https://img.shields.io/badge/version-1.3.7-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
@@ -8,12 +8,11 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.6)
+## Highlights (v1.3.7)
 
-- **Remote plugin manager v0.2** — registry schema v2 tracks display names, versions, checksums, dependencies, and source whitelists.
-- **Settings → Remote Plugins** now includes an Allowed Sources list plus an install preview dialog (metadata + checksum) before committing files.
-- **Metadata utilities** (`plugins/metadata_parser.py`) shared by the installer and plugin-repo scripts ensure docstrings stay structured.
-- Documentation (README, `docs/REMOTE_PLUGINS.md`, roadmap) updated to cover the new workflow and whitelist management.
+- **Remote plugin manager v0.3** — adds semantic version comparisons, remote update checks, and in-place updates with checksum validation.
+- **Settings → Remote Plugins** now features “Check Updates” / “Update Selected”, row highlighting for pending updates, and expanded whitelist controls.
+- Registry schema v2 captures version metadata per entry; tests now cover upgrade workflows and whitelist operations.
 
 ## Requirements
 

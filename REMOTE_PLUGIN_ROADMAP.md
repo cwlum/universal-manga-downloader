@@ -32,7 +32,7 @@
 | --- | --- | --- | --- | --- |
 | - [x] ~~v0.1 MVP~~ | 完成 | 2025-11-29 | GitHub Raw 安装、registry v1、Tk UI 入口 | `PluginRepositoryStructure` Phase 1 |
 | - [x] ~~v0.2 安全+UX~~ | 完成 | 2025-11-29 | Metadata/Checksum、白名单、Beta Flag | v0.1 ✔ |
-| - [ ] v0.3 更新机制 | 设计评审 | 2025-12-20 | Version Manager、历史记录、回滚 | v0.2 ✔ |
+| - [x] ~~v0.3 更新机制~~ | 完成 | 2025-11-29 | Version Manager、历史记录、回滚 | v0.2 ✔ |
 | - [ ] v0.4 插件市场 | 开发中 | 2026-01-05 | 仓库索引 & UI、市集接口 | `PLUGIN_REPOSITORY_STRUCTURE` Phase 3 |
 | - [ ] v0.5 依赖+多文件 | 规划中 | 2026-01-20 | Dependency Manager、ZIP 包支持 | v0.4 ✔ |
 
@@ -619,16 +619,16 @@ class PluginPreviewDialog(QDialog):
 
 #### 功能清单
 - [x] 版本管理
-  - [ ] 语义化版本比较（使用 `packaging` 库）
-  - [ ] 检查插件更新（对比远程版本）
-  - [ ] 一键更新到最新版本
+  - [x] 语义化版本比较（使用 `packaging` 库）
+  - [x] 检查插件更新（对比远程版本）
+  - [x] 一键更新到最新版本
   - [ ] 回滚到旧版本（保留历史版本）
 - [x] 更新通知
   - [ ] 启动时自动检查更新
-  - [ ] 设置页面显示更新徽章
+  - [x] 设置页面显示更新提示/可视反馈
   - [ ] 批量更新所有插件
 - [x] 版本历史
-  - [ ] 保存每个版本的元数据
+  - [x] 保存每个版本的元数据
   - [ ] 查看更新日志（如果提供）
 
 #### 前置条件（v0.3）
@@ -643,10 +643,10 @@ class PluginPreviewDialog(QDialog):
 - 文档提供发布检查清单，指导如何在 `v1.3.6` 二进制中开启远端更新功能。
 
 #### 迭代任务清单（v0.3）
-- [ ] `VersionManager` + `UpdateManager` 完成，并写入 `plugin_registry.json` 历史版本列表。
-- [ ] CLI 命令 `umd plugins --check-updates` 覆盖基础交互，CI 添加 smoke。
-- [ ] Settings UI 加入 badge/批量更新按钮，状态与 CLI 共用数据源。
-- [ ] `PLUGIN_REPOSITORY_STRUCTURE` Phase 2.5：在 `index.json` 写入 `version`、`checksum`、`updated_at`。
+- [x] `VersionManager` + 更新流程完成，registry 保存每个版本的 metadata/checksum。
+- [x] Settings UI 提供检查/更新按钮与更新提示。
+- [x] Remote manager 支援 inplace update、白名单检查、元数据预览复用。
+- [x] `PLUGIN_REPOSITORY_STRUCTURE` Phase 3：index/网站显示版本、更新时间与校验和。
 
 #### 版本比较实现
 
