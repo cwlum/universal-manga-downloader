@@ -8,6 +8,7 @@ import cloudscraper
 from bs4 import BeautifulSoup
 
 from config import CONFIG
+from utils.http_client import create_scraper_session
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class BatoService:
 
     def __init__(self, scraper: cloudscraper.CloudScraper | None = None) -> None:
         # Reuse the downloader's scraper if available to play nicely with Cloudflare.
-        self._scraper = scraper or cloudscraper.create_scraper()
+        self._scraper = scraper or create_scraper_session()
         self.base_url = CONFIG.service.bato_base_url
         self.search_path = CONFIG.service.bato_search_path
         self.max_search_pages = CONFIG.service.bato_max_search_pages

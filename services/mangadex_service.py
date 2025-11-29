@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 import requests  # type: ignore[import-untyped]
 
 from config import CONFIG
+from utils.http_client import configure_requests_session
 from utils.rate_limit import CircuitBreaker, CircuitBreakerConfig
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ class MangaDexService:
 
     def __init__(self, session: requests.Session | None = None) -> None:
         service_cfg = CONFIG.service
-        self._session = session or requests.Session()
+        self._session = configure_requests_session(session)
         self._api_base = service_cfg.mangadex_api_base.rstrip("/")
         self._site_base = service_cfg.mangadex_site_base.rstrip("/")
         self._search_limit = max(1, service_cfg.mangadex_search_limit)

@@ -1,21 +1,20 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.3-orange)
+![Version](https://img.shields.io/badge/version-1.3.4-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--26-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/cwlum/universal-manga-downloader)
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.3)
+## Highlights (v1.3.4)
 
-- **Major refactor**: Split monolithic UI into modular tab mixins for better maintainability
-- Download failure cleanup with safety checks to prevent leftover temporary files
-- Enhanced error messages with HTTP status codes and connection type details
-- Search debounce to prevent concurrent requests
-- Improved test coverage with 116 passing tests
-- Type annotations for mixin classes with MyPy compatibility
+- **IPv6-safe networking** — new proxy sanitization makes Bato/MangaDex searches work even when macOS injects `http://::1:6152`.
+- Auto-update now inherits the sanitized proxy environment so `umd --auto-update` can run behind loopback proxies.
+- Shared HTTP helper ensures both CloudScraper and `requests` sessions disable `trust_env` and reuse the same proxy settings.
+- Added targeted regression tests (HTTP helpers, CLI auto-update, MangaDex service) to protect the new plumbing.
+- Documentation, changelog, and release metadata refreshed for 1.3.4.
 
 ## Requirements
 
