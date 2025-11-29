@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,6 +24,21 @@ REGISTRY_SCHEMA_VERSION = 2
 DEFAULT_ALLOWED_SOURCES = (
     "https://raw.githubusercontent.com/umd-plugins/official/",
 )
+MAX_HISTORY_ENTRIES = 10
+
+
+class RemotePluginHistoryEntry(TypedDict):
+    """Snapshot metadata for a historical plugin version."""
+
+    version: str
+    checksum: str
+    saved_at: str
+    file_path: str
+    display_name: str
+    author: str
+    description: str
+    dependencies: list[str]
+    source_url: str
 
 
 class RemotePluginRecord(TypedDict):
@@ -39,6 +55,7 @@ class RemotePluginRecord(TypedDict):
     description: str
     dependencies: list[str]
     checksum: str
+    history: list[RemotePluginHistoryEntry]
 
 
 class RemoteRegistryPayload(TypedDict):
@@ -81,6 +98,7 @@ class RemotePluginManager:
         self._plugin_dir = plugin_dir
         self._registry_file = self._plugin_dir / "plugin_registry.json"
         self._whitelist_file = self._plugin_dir / "remote_sources.json"
+        self._history_dir = self._plugin_dir / "remote_history"
         self._registry: list[RemotePluginRecord] = self._load_registry()
         if allowed_sources is not None:
             self._allowed_sources = [self._ensure_trailing_slash(prefix) for prefix in allowed_sources]
@@ -209,13 +227,17 @@ class RemotePluginManager:
         assert validation.plugin_name is not None
         assert validation.plugin_type is not None
 
+        history: list[RemotePluginHistoryEntry] = []
+        existing_record = self.get_record(validation.plugin_name)
+
         filename = self._extract_filename(prepared.url)
         if not filename.endswith(".py"):
             filename = f"{filename}.py"
         file_path = self._plugin_dir / filename
-        if self._is_installed(validation.plugin_name):
+        if existing_record is not None:
             if not replace_existing:
                 return False, f"插件 {validation.plugin_name} 已安装"
+            history = self._archive_record(existing_record)
             self._remove_record(validation.plugin_name)
 
         metadata = dict(prepared.metadata)
@@ -246,6 +268,7 @@ class RemotePluginManager:
             description=description,
             dependencies=list(dependencies),
             checksum=prepared.checksum,
+            history=history,
         )
         self._registry.append(record)
         self._save_registry()
@@ -266,6 +289,12 @@ class RemotePluginManager:
 
         self._registry.remove(record)
         self._save_registry()
+        history_dir = (self._history_dir / plugin_name)
+        if history_dir.exists():
+            try:
+                shutil.rmtree(history_dir)
+            except OSError:
+                logger.debug("Failed to remove history directory %s", history_dir)
         return True, f"已卸载 {plugin_name}"
 
     def check_updates(self) -> list[UpdateInfo]:
@@ -295,6 +324,53 @@ class RemotePluginManager:
         if not success or prepared is None:
             return False, message
         return self.commit_install(prepared, replace_existing=True)
+
+    def list_history(self, plugin_name: str) -> list[RemotePluginHistoryEntry]:
+        record = self.get_record(plugin_name)
+        if record is None:
+            return []
+        return list(record.get("history", []))
+
+    def rollback_plugin(self, plugin_name: str, version: str | None = None, checksum: str | None = None) -> tuple[bool, str]:
+        record = self.get_record(plugin_name)
+        if record is None:
+            return False, "未找到插件"
+        history_entries = record.get("history", [])
+        if not history_entries:
+            return False, "没有可用的历史版本"
+
+        target_entry: RemotePluginHistoryEntry | None = None
+        if checksum:
+            target_entry = next((entry for entry in history_entries if entry["checksum"] == checksum), None)
+        if target_entry is None and version is not None:
+            target_entry = next((entry for entry in history_entries if entry["version"] == version), None)
+        if target_entry is None:
+            target_entry = history_entries[0]
+
+        snapshot_path = Path(target_entry["file_path"])
+        if not snapshot_path.exists():
+            return False, "历史版本文件已丢失"
+
+        updated_history = self._archive_record(record)
+        if not updated_history and history_entries:
+            updated_history = list(history_entries)
+        updated_history = [item for item in updated_history if item["checksum"] != target_entry["checksum"]]
+
+        try:
+            shutil.copy2(snapshot_path, Path(record["file_path"]))
+        except OSError as exc:
+            logger.exception("Failed to rollback plugin %s", plugin_name)
+            return False, f"回滚失败: {exc}"
+
+        record["version"] = target_entry["version"]
+        record["display_name"] = target_entry["display_name"]
+        record["author"] = target_entry["author"]
+        record["description"] = target_entry["description"]
+        record["dependencies"] = list(target_entry.get("dependencies", []))
+        record["checksum"] = target_entry["checksum"]
+        record["history"] = updated_history
+        self._save_registry()
+        return True, f"已回滚 {plugin_name} 至 {target_entry['version']}"
 
     # --- Validation helpers ---
 
@@ -333,6 +409,41 @@ class RemotePluginManager:
     def _remove_record(self, plugin_name: str) -> None:
         self._registry = [record for record in self._registry if record["name"] != plugin_name]
 
+    def _archive_record(self, record: RemotePluginRecord) -> list[RemotePluginHistoryEntry]:
+        file_path = Path(record["file_path"])
+        snapshot_path = ""
+        if file_path.exists():
+            try:
+                history_dir = self._history_dir / record["name"]
+                history_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+                snapshot_name = f"{timestamp}_{file_path.name}"
+                destination = history_dir / snapshot_name
+                shutil.copy2(file_path, destination)
+                snapshot_path = str(destination)
+            except OSError as exc:
+                logger.exception("Failed to archive plugin %s: %s", record["name"], exc)
+                snapshot_path = ""
+
+        if not snapshot_path:
+            return list(record.get("history", []))
+
+        entry: RemotePluginHistoryEntry = RemotePluginHistoryEntry(
+            version=record.get("version", "0.0.0"),
+            checksum=record.get("checksum", ""),
+            saved_at=datetime.utcnow().isoformat(),
+            file_path=snapshot_path,
+            display_name=record.get("display_name", record["name"]),
+            author=record.get("author", "Unknown"),
+            description=record.get("description", ""),
+            dependencies=list(record.get("dependencies", [])),
+            source_url=record.get("source_url", ""),
+        )
+
+        history = list(record.get("history", []))
+        history.insert(0, entry)
+        return history[:MAX_HISTORY_ENTRIES]
+
     def _fetch_remote_version(self, url: str) -> str | None:
         try:
             code = self._download(url)
@@ -351,6 +462,25 @@ class RemotePluginManager:
             dependencies = raw_entry.get("dependencies")
             if not isinstance(dependencies, list):
                 dependencies = []
+            history_payload = raw_entry.get("history")
+            parsed_history: list[RemotePluginHistoryEntry] = []
+            if isinstance(history_payload, list):
+                for item in history_payload:
+                    if not isinstance(item, dict):
+                        continue
+                    parsed_history.append(
+                        RemotePluginHistoryEntry(
+                            version=str(item.get("version", "0.0.0")),
+                            checksum=str(item.get("checksum", "")),
+                            saved_at=str(item.get("saved_at", "")),
+                            file_path=str(item.get("file_path", "")),
+                            display_name=str(item.get("display_name", raw_entry["name"])),
+                            author=str(item.get("author", "Unknown")),
+                            description=str(item.get("description", "")),
+                            dependencies=[str(dep) for dep in item.get("dependencies", [])] if isinstance(item.get("dependencies"), list) else [],
+                            source_url=str(item.get("source_url", raw_entry.get("source_url", ""))),
+                        )
+                    )
             return RemotePluginRecord(
                 name=str(raw_entry["name"]),
                 plugin_type=str(raw_entry["plugin_type"]),
@@ -363,6 +493,7 @@ class RemotePluginManager:
                 description=str(raw_entry.get("description", "")),
                 dependencies=[str(dep) for dep in dependencies],
                 checksum=str(raw_entry.get("checksum", "")),
+                history=parsed_history,
             )
         logger.debug("Skipping malformed registry entry: %s", raw_entry)
         return None
@@ -391,4 +522,5 @@ __all__ = [
     "RemotePluginManager",
     "RemotePluginRecord",
     "PreparedRemotePlugin",
+    "RemotePluginHistoryEntry",
 ]

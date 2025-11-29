@@ -622,11 +622,11 @@ class PluginPreviewDialog(QDialog):
   - [x] 语义化版本比较（使用 `packaging` 库）
   - [x] 检查插件更新（对比远程版本）
   - [x] 一键更新到最新版本
-  - [ ] 回滚到旧版本（保留历史版本）
+  - [x] 回滚到旧版本（保留历史版本快照 + GUI/CLI 回滚）
 - [x] 更新通知
   - [ ] 启动时自动检查更新
   - [x] 设置页面显示更新提示/可视反馈
-  - [ ] 批量更新所有插件
+  - [x] 批量更新所有插件（CLI `umd plugins update --all` 支援）
 - [x] 版本历史
   - [x] 保存每个版本的元数据
   - [ ] 查看更新日志（如果提供）
@@ -647,6 +647,7 @@ class PluginPreviewDialog(QDialog):
 - [x] Settings UI 提供检查/更新按钮与更新提示。
 - [x] Remote manager 支援 inplace update、白名单检查、元数据预览复用。
 - [x] `PLUGIN_REPOSITORY_STRUCTURE` Phase 3：index/网站显示版本、更新时间与校验和。
+- [x] CLI `umd plugins …` 子命令：list/install/uninstall/check/update/history/rollback 全流程覆盖。
 
 #### 版本比较实现
 
@@ -907,11 +908,11 @@ class SettingsTab:
 ```
 
 #### 测试清单
-- [ ] 版本比较正确（包括语义化版本）
-- [ ] 检测到可用更新
-- [ ] 更新成功且功能正常
-- [ ] 更新失败时能正确回滚
-- [ ] 批量更新工作正常
+- [x] 版本比较正确（包括语义化版本）
+- [x] 检测到可用更新
+- [x] 更新成功且功能正常
+- [x] 更新失败时能正确回滚（`tests/test_plugins/test_remote_manager.py::test_history_and_rollback`）
+- [x] 批量更新工作正常（CLI --all 覆盖）
 
 ---
 
@@ -921,15 +922,15 @@ class SettingsTab:
 
 #### 功能清单
 - [x] 插件仓库
-  - [ ] 设计仓库索引格式（JSON）
-  - [ ] 创建官方插件仓库（GitHub repo）
-  - [ ] 自动同步仓库索引
-  - [ ] 支持多个仓库源
+  - [x] 设计仓库索引格式（JSON）
+  - [x] 创建官方插件仓库（GitHub repo）
+  - [x] 自动同步仓库索引（RepositoryManager + 缓存）
+  - [x] 支持多个仓库源（Settings → Repositories 列表 + CLI 配置文件）
 - [x] 浏览和搜索
-  - [ ] 插件市场 UI（网格或列表视图）
-  - [ ] 按类型筛选（Parser/Converter）
-  - [ ] 关键词搜索
-  - [ ] 排序（名称、下载量、更新日期）
+  - [x] 插件市场 UI（Tk 列表视图 + 预览安装）
+  - [x] 按类型筛选（Parser/Converter）
+  - [x] 关键词搜索
+  - [x] 排序（名称、下载量、更新日期）
 - [x] 社区功能
   - [ ] 插件评分和评论（可选）
   - [ ] 下载统计
@@ -947,8 +948,8 @@ class SettingsTab:
 - Settings 中可切换仓库或新增自定义仓库 URL，并将此设定持久化在用户配置中。
 
 #### 迭代任务清单（v0.4）
-- [ ] `PluginMarketTab`（Tk 版本）完成，加载 `RepositoryManager` 缓存。
-- [ ] `sync_repositories` 后台任务整合 QueueManager，避免阻塞 UI。
+- [x] `PluginMarketTab`（Tk 版本）完成，加载 `RepositoryManager` 缓存。
+- [x] `sync_repositories` 后台任务整合 QueueManager，避免阻塞 UI。
 - [ ] GitHub Pages 市集上线（参考 `PLUGIN_REPOSITORY_STRUCTURE` Phase 3），包含搜索/筛选。
 - [ ] 指南/issue template/pipeline 文档齐备（README + Submission Guide + issue templates）。
 

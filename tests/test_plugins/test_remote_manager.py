@@ -149,3 +149,31 @@ def test_check_updates_and_update(monkeypatch: pytest.MonkeyPatch, tmp_path: Pat
     record = manager.get_record("RemoteSampleParser")
     assert record is not None
     assert record["version"] == "2.0.0"
+
+
+def test_history_and_rollback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
+    opener = SequentialOpener([PLUGIN_CODE, UPDATED_PLUGIN_CODE, UPDATED_PLUGIN_CODE])
+    monkeypatch.setattr("plugins.remote_manager.urlopen", opener)
+
+    ok, prepared, _ = manager.prepare_install("https://raw.githubusercontent.com/org/repo/main/remote_sample.py")
+    assert ok and prepared
+    ok, _ = manager.commit_install(prepared)
+    assert ok
+
+    ok, msg = manager.update_plugin("RemoteSampleParser")
+    assert ok, msg
+
+    history = manager.list_history("RemoteSampleParser")
+    assert history
+    assert history[0]["version"] == "1.2.3"
+    snapshot_path = Path(history[0]["file_path"])
+    assert snapshot_path.exists()
+
+    success, message = manager.rollback_plugin("RemoteSampleParser", version="1.2.3")
+    assert success, message
+    record = manager.get_record("RemoteSampleParser")
+    assert record is not None
+    assert record["version"] == "1.2.3"
+    assert record["history"]
+    assert record["history"][0]["version"] == "2.0.0"
