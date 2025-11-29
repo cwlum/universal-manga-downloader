@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UMD Plugin Market</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1>🔌 Universal Manga Downloader</h1>
+        <h2>Plugin Market (Beta)</h2>
+        <p>Browse community plugins and copy install URLs.</p>
+      </div>
+    </header>
+    <main class="container">
+      <section class="filters">
+        <input type="text" id="search" placeholder="Search plugins..." />
+        <select id="type-filter">
+          <option value="all">All Types</option>
+          <option value="parser">Parsers</option>
+          <option value="converter">Converters</option>
+        </select>
+        <select id="sort">
+          <option value="downloads">Most Downloads</option>
+          <option value="name">Name (A-Z)</option>
+          <option value="updated_at">Recently Updated</option>
+        </select>
+        <button id="refresh">Refresh</button>
+      </section>
+      <section id="plugin-grid" class="plugin-grid"></section>
+    </main>
+    <footer>
+      <p>
+        <a href="https://github.com/umd-plugins/official">GitHub Repository</a>
+        ·
+        <a href="../docs/submission-guide.md">Submission Guide</a>
+        ·
+        <a href="https://github.com/cwlum/universal-manga-downloader">Main Project</a>
+      </p>
+    </footer>
+    <script src="app.js"></script>
+  </body>
+</html>

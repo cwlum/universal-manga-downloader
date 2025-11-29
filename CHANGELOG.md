@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2025-11-29
+
+### Added
+- Remote plugin manager (`plugins/remote_manager.py`) with registry tracking, URL validation, and Tkinter management UI.
+- Settings → Remote Plugins section enabling install/refresh/uninstall workflows without restarting.
+- `plugin_repository/official` scaffold (README, sample plugins, scripts, GitHub Actions, website assets) to serve as the community wiki/repo.
+- Documentation updates covering remote plugin installation (`docs/REMOTE_PLUGINS.md`) and sharing guidance in `PLUGINS.md`.
+
+### Changed
+- README highlights bumped to v1.3.5 and include a Remote Plugins (Beta) section.
+- Roadmap/structure documents now include strike-through tracking for completed phases.
+
+### Fixed
+- Added pytest coverage for the remote manager install/uninstall flows to guard against registry regressions.
+
 ## [1.3.4] - 2025-11-29
 
 ### Added
@@ -154,7 +169,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...HEAD
+[1.3.5]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...v1.3.5
 [1.3.4]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...v1.3.4
 [1.3.3]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.2...v1.3.3
 [1.3.2]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.1...v1.3.2

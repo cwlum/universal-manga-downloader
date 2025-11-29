@@ -92,3 +92,10 @@ Exceptions in hooks are logged but should not crash the application; handle fail
 - [ ] Filenames are sanitized; no filesystem assumptions outside `output_dir`.
 - [ ] Logging uses the standard logger; no `print` or runtime dependency installs.
 - [ ] Tests, lint, and types pass; documentation for new behavior is added where relevant.
+
+## Sharing Remote Plugins
+
+- Use the scaffold in `plugin_repository/official` as the canonical wiki/repository for community plugins.
+- Ensure your plugin passes `plugin_repository/official/scripts/validate_plugin.py` before publishing.
+- Provide a GitHub Raw URL so users can install through Settings → Remote Plugins.
+- See [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for installation & safety guidance.

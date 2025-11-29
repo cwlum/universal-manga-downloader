@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "last_updated": "2025-11-29T07:21:46.575347",
+  "plugins": [
+    {
+      "id": "example_remote_parser",
+      "name": "Example Remote Parser",
+      "type": "parser",
+      "author": "UMD Community",
+      "version": "0.1.0",
+      "description": "Skeleton parser demonstrating remote plugin metadata and structure.",
+      "repository": "https://github.com/umd-plugins/official",
+      "license": "MIT",
+      "dependencies": [],
+      "source_url": "https://raw.githubusercontent.com/umd-plugins/official/main/parsers/example_remote_parser.py",
+      "checksum": "sha256:3dfee5e213ab8c1fa36149cd31785de429da94d05b79575225c5e014bb749025",
+      "downloads": 0,
+      "rating": 5.0,
+      "tags": [],
+      "created_at": "2025-11-29T07:21:46.576051",
+      "updated_at": "2025-11-29T07:21:46.576052"
+    },
+    {
+      "id": "example_epub_converter",
+      "name": "Example EPUB Converter",
+      "type": "converter",
+      "author": "UMD Community",
+      "version": "0.1.0",
+      "description": "Demonstrates converter metadata for remote repository entries.",
+      "repository": "https://github.com/umd-plugins/official",
+      "license": "MIT",
+      "dependencies": [
+        "ebooklib>=0.18"
+      ],
+      "source_url": "https://raw.githubusercontent.com/umd-plugins/official/main/converters/example_epub_converter.py",
+      "checksum": "sha256:28f01a8e9e8b46f257fc2ed6d81fe8733b863de87a262a190ee4ad4823652948",
+      "downloads": 0,
+      "rating": 5.0,
+      "tags": [],
+      "created_at": "2025-11-29T07:21:46.576293",
+      "updated_at": "2025-11-29T07:21:46.576294"
+    }
+  ]
+}

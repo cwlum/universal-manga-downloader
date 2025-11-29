@@ -19,6 +19,7 @@ from config import CONFIG
 from core.download_task import DownloadTask, DownloadUIHooks
 from core.queue_manager import QueueManager, QueueState
 from plugins.base import PluginManager, PluginType
+from plugins.remote_manager import RemotePluginManager
 from services import BatoService, MangaDexService
 from ui.logging_utils import configure_logging
 from ui.models import QueueItem, SearchResult, SeriesChapter
@@ -73,6 +74,7 @@ class MangaDownloader(BrowserTabMixin, DownloadsTabMixin, SettingsTabMixin, tk.T
         }
         self.plugin_manager = PluginManager()
         self.plugin_manager.load_plugins()
+        self.remote_plugin_manager = RemotePluginManager(self.plugin_manager.plugin_dir)
         self.scraper_pool = ScraperPool(CONFIG.download.scraper_pool_size)
         self.queue_manager = QueueManager()
 
