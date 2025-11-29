@@ -8,6 +8,19 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
+## Table of Contents
+
+- [Highlights (v1.3.9)](#highlights-v139)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Launch](#launch)
+- [GUI Workflow](#gui-workflow)
+- [Project Layout](#project-layout)
+- [Community Plugins](#community-plugins)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Highlights (v1.3.9)
 
 - **Dependency Manager (v0.5)** — Settings & CLI can inspect/install missing requirements, and the registry now tracks dependency health per plugin.

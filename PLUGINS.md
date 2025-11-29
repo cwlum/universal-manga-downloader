@@ -2,6 +2,38 @@
 
 UMD plugins are small, focused modules that add site parsers or output converters without touching core code. This guide explains the plugin architecture, required interfaces, and submission process.
 
+## Table of Contents
+
+- [Where to Submit Your Plugin](#-where-to-submit-your-plugin)
+  - [For Community Developers (Recommended)](#for-community-developers-recommended)
+  - [For Official Plugins](#for-official-plugins)
+- [Plugin Architecture](#plugin-architecture)
+- [Discovery Rules](#discovery-rules)
+- [Parser Plugins](#parser-plugins)
+  - [Required Methods](#required-methods)
+  - [Complete Template](#complete-template-for-community-plugins)
+  - [Guidelines](#guidelines)
+- [Converter Plugins](#converter-plugins)
+  - [Required Methods](#required-methods-1)
+  - [Complete Template](#complete-template-for-community-plugins-1)
+  - [Guidelines](#guidelines-1)
+- [Metadata Format](#metadata-format)
+  - [Required Fields](#required-fields)
+  - [Optional Fields](#optional-fields)
+- [Lifecycle Hooks](#lifecycle-hooks)
+- [Testing Community Plugins Locally](#testing-community-plugins-locally)
+  - [Option 1: Test as a Built-in Plugin (Quick)](#option-1-test-as-a-built-in-plugin-quick)
+  - [Option 2: Test as a Remote Plugin (Realistic)](#option-2-test-as-a-remote-plugin-realistic)
+  - [Validation](#validation)
+- [Testing and Validation (Official Plugins)](#testing-and-validation-official-plugins)
+- [Submission Checklist](#submission-checklist)
+  - [For Community Plugins](#for-community-plugins-community-plugins)
+  - [For Official Plugins](#for-official-plugins-plugins)
+- [Sharing Community Plugins](#sharing-community-plugins)
+- [Common Pitfalls](#common-pitfalls)
+
+---
+
 ## 📍 Where to Submit Your Plugin
 
 ### For Community Developers (Recommended)
