@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, cast
 
 from config import CONFIG
 from plugins.base import PluginType
+from plugins.dependency_manager import DependencyManager
 from ui.widgets import clamp_value
 from utils.file_utils import get_default_download_root
 
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from plugins.remote_manager import (
         PreparedRemotePlugin,
         RemotePluginHistoryEntry,
+        RemotePluginRecord,
         RemotePluginManager,
     )
     from plugins.repository_manager import (
@@ -238,6 +240,12 @@ class SettingsTabMixin:
             side="left", padx=(6, 0)
         )
         ttk.Button(action_row, text="History / Rollback", command=self._show_remote_plugin_history).pack(
+            side="left", padx=(6, 0)
+        )
+        ttk.Button(action_row, text="Check Dependencies", command=self._check_remote_dependencies).pack(
+            side="left", padx=(6, 0)
+        )
+        ttk.Button(action_row, text="Install Missing Deps", command=self._install_remote_dependencies).pack(
             side="left", padx=(6, 0)
         )
 
@@ -478,17 +486,27 @@ class SettingsTabMixin:
         self._refresh_plugin_settings_ui()
         self._refresh_remote_plugin_list()
 
-    def _uninstall_remote_plugin(self) -> None:
+    def _get_selected_remote_record(self) -> tuple[str, "RemotePluginRecord"] | None:
         tree = getattr(self, "_remote_plugins_tree", None)
         if tree is None:
-            return
+            return None
         selection = tree.selection()
         if not selection:
+            return None
+        plugin_name = selection[0]
+        record = self.remote_plugin_manager.get_record(plugin_name)
+        if record is None:
+            return None
+        return plugin_name, record
+
+    def _uninstall_remote_plugin(self) -> None:
+        selected = self._get_selected_remote_record()
+        if selected is None:
             self._set_status("Status: 请选择要卸载的插件。")
             return
-        item_id = selection[0]
-        plugin_name = item_id
-        plugin_type_value = tree.set(item_id, "type")
+        plugin_name, _ = selected
+        tree = self._remote_plugins_tree
+        plugin_type_value = tree.set(plugin_name, "type") if tree else "parser"
         success, message = self.remote_plugin_manager.uninstall(plugin_name)
         self._set_status(f"Status: {message}")
         if not success:
@@ -543,6 +561,60 @@ class SettingsTabMixin:
             self._set_status("Status: 当前插件没有历史版本。")
             return
         self._open_history_dialog(plugin_name, history)
+
+    def _check_remote_dependencies(self) -> None:
+        selected = self._get_selected_remote_record()
+        if selected is None:
+            self._set_status("Status: 请选择插件后再检查依赖。")
+            return
+        plugin_name, record = selected
+        dependencies = record.get("dependencies", [])
+        dep_list = [str(dep) for dep in dependencies] if isinstance(dependencies, list) else []
+        if not dep_list:
+            self._set_status("Status: 该插件未声明依赖。")
+            messagebox.showinfo("依赖检查", "该插件未声明额外依赖。")
+            return
+        statuses = DependencyManager.check(dep_list)
+        missing = [status for status in statuses if not status.satisfies]
+        if not missing:
+            self._set_status("Status: 所有依赖均已满足。")
+            messagebox.showinfo("依赖检查", "所有依赖都已安装。")
+            return
+        lines = [f"{status.requirement} (当前: {status.installed_version or '未安装'})" for status in missing]
+        messagebox.showwarning("依赖缺失", "\n".join(lines))
+        self._set_status(f"Status: 缺失依赖 {', '.join(item.requirement for item in missing)}")
+
+    def _install_remote_dependencies(self) -> None:
+        selected = self._get_selected_remote_record()
+        if selected is None:
+            self._set_status("Status: 请选择插件后再安装依赖。")
+            return
+        plugin_name, record = selected
+        dependencies = record.get("dependencies", [])
+        dep_list = [str(dep) for dep in dependencies] if isinstance(dependencies, list) else []
+        if not dep_list:
+            self._set_status("Status: 该插件未声明依赖。")
+            return
+        missing = DependencyManager.missing(dep_list)
+        if not missing:
+            self._set_status("Status: 所有依赖已满足。")
+            return
+
+        self._set_status(f"Status: 正在安装 {plugin_name} 依赖…")
+
+        def _worker() -> None:
+            success, message = DependencyManager.install(missing)
+            master = cast(tk.Misc, self)
+            def _notify() -> None:
+                self._set_status(f"Status: {message}")
+                if success:
+                    messagebox.showinfo("依赖安装", message)
+                else:
+                    messagebox.showerror("依赖安装", message)
+
+            master.after(0, _notify)
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _open_history_dialog(self, plugin_name: str, history: list[RemotePluginHistoryEntry]) -> None:
         master = cast(tk.Misc, self)

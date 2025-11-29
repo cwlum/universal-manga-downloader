@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.9] - 2025-11-29
+
+### Added
+- `plugins/dependency_manager.py` plus GUI + CLI flows for checking/installing missing plugin requirements (`umd plugins install-deps`).
+- ZIP/multi-file plugin installation with package-aware history/rollback and PluginLoader support for directory modules.
+- Remote Plugins UI buttons for dependency inspection/installation and market installs for `.zip` bundles.
+
+### Changed
+- Remote plugin registry schema now records `artifact_type` so packages and single files share the same update/rollback path.
+- Plugin repository index includes `artifact_type` metadata; docs highlight the v0.5 roadmap progress.
+- CLI `plugins install/update` commands emit dependency prompts instead of silently failing at runtime.
+
 ## [1.3.8] - 2025-11-29
 
 ### Added
@@ -210,7 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.8...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.9...HEAD
+[1.3.9]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.8...v1.3.9
 [1.3.8]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...v1.3.8
 [1.3.7]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...v1.3.7
 [1.3.6]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...v1.3.6

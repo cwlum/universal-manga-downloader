@@ -18,7 +18,7 @@
 - [x] ~~Phase 1~~：仓库初始化（README、目录骨架、示例插件 3 个） → 依赖 `v0.1`。
 - [x] ~~Phase 2~~：验证脚本、metadata、CI（validate + index） → 对应 `v0.2-v0.3`。
 - [x] ~~Phase 3~~：GitHub Pages / index.json / 市集 UI 预览版完成，供 `v0.4` 插件市场同步 & CLI 使用。
-- [ ] Phase 4：多文件/依赖声明/信任等级 → 服务 `v0.5+`。
+- [ ] Phase 4：多文件/依赖声明/信任等级 → v0.5 正在推进（artifact_type + dependencies 字段已上线）。
 
 所有阶段完成情况应回写到 `REMOTE_PLUGIN_ROADMAP.md` 的迭代追踪板，保持主仓与插件仓同步滚动。
 

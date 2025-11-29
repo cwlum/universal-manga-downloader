@@ -1,6 +1,6 @@
 # Remote Plugin Installation Guide
 
-Universal Manga Downloader v1.3.8 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, and rollback support. Follow these steps to safely install community plugins.
+Universal Manga Downloader v1.3.9 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
 
 ## Quick Start
 
@@ -19,19 +19,19 @@ Universal Manga Downloader v1.3.8 extends the remote plugin workflow with metada
 - Maintain the **Allowed Sources** list in Settings to restrict installs to trusted repositories.
 - Keep a backup of `plugins/plugin_registry.json` if you plan to sync between devices.
 
-## Registry & History
+## Registry, History & Bundles
 
-- Installed files live in the standard `plugins/` directory.
-- Metadata (display name, version, author, checksum, dependencies) and **history snapshots** are recorded in `plugins/plugin_registry.json`.
-- Every update stores the previous version under `plugins/remote_history/<PluginName>/` so you can roll back from the UI or CLI.
-- Deleting registry entries through the UI removes the corresponding file and its history folder.
+- Installed files live in the standard `plugins/` directory. Single-file plugins end with `.py`; multi-file bundles unpack into `plugins/<PluginName>/` packages.
+- Metadata (display name, version, author, checksum, dependencies, artifact type) and **history snapshots** are recorded in `plugins/plugin_registry.json`.
+- Every update stores the previous version under `plugins/remote_history/<PluginName>/`; rollbacks copy back either the single file or the entire directory tree.
+- Deleting registry entries through the UI removes the corresponding file/directory and its history folder.
 
 ## Plugin Market (Preview)
 
 1. Open **Settings → Plugin Market (Preview)**.
 2. Click **Sync Repositories** to fetch `index.json` from `umd-plugins/official` (or any custom repository you add).
 3. Search/filter/sort the list (type, downloads, rating, updated date) to find what you need.
-4. Double-click or select + **Install Selected** to run the standard validation/preview workflow.
+4. Double-click or select + **Install Selected** to run the standard validation/preview workflow—`.zip` bundles are extracted into their own package directories.
 5. Maintain additional repositories via the listbox (Add/Remove) — they persist in `plugins/plugin_repositories.json`.
 
 The market view is intentionally opt-in and non-blocking: if sync fails, the installed plugins remain untouched.
@@ -49,6 +49,7 @@ The `umd` binary ships with subcommands tailored for remote plugins:
 | `umd plugins update --all` or `umd plugins update <Name...>` | Upgrade plugins in bulk or selectively. |
 | `umd plugins history <ClassName>` | Display stored snapshots (version, timestamp, checksum). |
 | `umd plugins rollback <ClassName> [--version V] [--checksum HASH]` | Restore a previous version from history. |
+| `umd plugins install-deps <ClassName>` | Install any missing dependencies declared by the plugin. |
 
 All commands honor the same whitelist/registry as the GUI, making headless installations and CI automation straightforward.
 
@@ -76,9 +77,10 @@ All commands honor the same whitelist/registry as the GUI, making headless insta
 - Default entry: `https://raw.githubusercontent.com/umd-plugins/official/`.
 - Adding new entries requires the same host (`raw.githubusercontent.com`).
 
-## Updating & Rolling Back
+## Updating, Dependencies & Rolling Back
 
 - Click **Check Updates** to fetch metadata from each installed plugin; rows with updates turn shaded.
+- Use **Check Dependencies** / **Install Missing Deps** (GUI) or `umd plugins install-deps <Name>` to keep requirements satisfied.
 - Select a plugin and click **Update Selected** to re-download and replace it in-place, or run `umd plugins update --all` headlessly.
 - Every update archives the previous version; use **History / Rollback** (GUI) or `umd plugins rollback` to recover.
 

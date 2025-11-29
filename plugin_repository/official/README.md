@@ -13,11 +13,11 @@ Centralized repository for Universal Manga Downloader (UMD) community plugins. U
 
 Each plugin exposes the same API as built-in modules (`BasePlugin` or `BaseConverter`).
 
-## 🚀 Install from UMD (v1.3.8+)
+## 🚀 Install from UMD (v1.3.9+)
 
-1. Open **Settings → Remote Plugins**.
-2. Paste the raw GitHub URL from this repository (e.g., `https://raw.githubusercontent.com/umd-plugins/official/main/parsers/example_remote_parser.py`).
-3. Click **Install** to load instantly.
+1. Open **Settings → Remote Plugins** (or the Plugin Market preview and sync the index).
+2. Paste the raw GitHub URL or `.zip` bundle URL from this repository (e.g., `https://raw.githubusercontent.com/umd-plugins/official/main/parsers/example_remote_parser.py`).
+3. Click **Install** to load instantly; ZIP packages extract into `plugins/<PluginName>/`.
 
 ## 📦 Sample Plugins
 
@@ -51,7 +51,7 @@ See [`docs/submission-guide.md`](docs/submission-guide.md) for full details.
 
 ## 📊 Metadata
 
-`index.json` captures plugin metadata (name, version, checksum, downloads). The website reads this file to power search/filter/sort.
+`index.json` captures plugin metadata (name, version, checksum, downloads, `artifact_type`, dependencies). The website reads this file to power search/filter/sort.
 
 ## 📜 License
 

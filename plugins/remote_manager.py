@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import re
 import shutil
+import tempfile
+import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Literal, TypedDict, cast
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -25,6 +28,7 @@ DEFAULT_ALLOWED_SOURCES = (
     "https://raw.githubusercontent.com/umd-plugins/official/",
 )
 MAX_HISTORY_ENTRIES = 10
+ArtifactType = Literal["file", "package"]
 
 
 class RemotePluginHistoryEntry(TypedDict):
@@ -34,6 +38,7 @@ class RemotePluginHistoryEntry(TypedDict):
     checksum: str
     saved_at: str
     file_path: str
+    artifact_type: ArtifactType
     display_name: str
     author: str
     description: str
@@ -55,6 +60,7 @@ class RemotePluginRecord(TypedDict):
     description: str
     dependencies: list[str]
     checksum: str
+    artifact_type: ArtifactType
     history: list[RemotePluginHistoryEntry]
 
 
@@ -89,6 +95,10 @@ class PreparedRemotePlugin:
     validation: RemoteValidationResult
     metadata: PluginMetadata
     checksum: str
+    artifact_type: ArtifactType
+    temp_dir: Path | None = None
+    package_root: Path | None = None
+    filename: str | None = None
 
 
 class RemotePluginManager:
@@ -195,32 +205,17 @@ class RemotePluginManager:
             return False, None, "该来源不在白名单，先添加后再尝试"
 
         try:
-            content = self._download(url)
+            if self._is_archive_url(url):
+                binary = self._download_bytes(url)
+                return self._prepare_archive(url, binary)
+            content = self._download_text(url)
         except URLError as exc:  # pragma: no cover - urllib already tested elsewhere
             logger.warning("Failed to download plugin from %s: %s", url, exc)
             return False, None, "下载失败，请检查网络或 URL 是否正确"
         except Exception as exc:  # noqa: BLE001
             logger.exception("Unexpected error while downloading %s", url)
             return False, None, str(exc)
-
-        validation = self._validate_plugin_code(content)
-        if not validation.valid:
-            return False, None, validation.reason or "插件验证失败"
-        assert validation.plugin_name is not None
-        assert validation.plugin_type is not None
-
-        metadata = parse_plugin_metadata(content)
-        if "dependencies" not in metadata:
-            metadata["dependencies"] = []
-        checksum = calculate_checksum(content)
-        prepared = PreparedRemotePlugin(
-            url=url,
-            code=content,
-            validation=validation,
-            metadata=metadata,
-            checksum=checksum,
-        )
-        return True, prepared, ""
+        return self._prepare_from_code(url, content)
 
     def commit_install(self, prepared: PreparedRemotePlugin, *, replace_existing: bool = False) -> tuple[bool, str]:
         validation = prepared.validation
@@ -230,14 +225,19 @@ class RemotePluginManager:
         history: list[RemotePluginHistoryEntry] = []
         existing_record = self.get_record(validation.plugin_name)
 
-        filename = self._extract_filename(prepared.url)
-        if not filename.endswith(".py"):
+        filename = prepared.filename or self._extract_filename(prepared.url)
+        if prepared.artifact_type == "file" and not filename.endswith(".py"):
             filename = f"{filename}.py"
-        file_path = self._plugin_dir / filename
+        file_path = (
+            self._plugin_dir / validation.plugin_name
+            if prepared.artifact_type == "package"
+            else self._plugin_dir / filename
+        )
         if existing_record is not None:
             if not replace_existing:
                 return False, f"插件 {validation.plugin_name} 已安装"
             history = self._archive_record(existing_record)
+            self._remove_artifact(Path(existing_record["file_path"]))
             self._remove_record(validation.plugin_name)
 
         metadata = dict(prepared.metadata)
@@ -251,10 +251,22 @@ class RemotePluginManager:
         dependencies = [str(dep) for dep in deps_value]
 
         try:
-            file_path.write_text(prepared.code, encoding="utf-8")
+            if prepared.artifact_type == "package":
+                if file_path.exists():
+                    shutil.rmtree(file_path)
+                if prepared.package_root is None:
+                    return False, "缺少解压后的插件目录"
+                shutil.copytree(prepared.package_root, file_path)
+            else:
+                file_path.write_text(prepared.code, encoding="utf-8")
         except OSError as exc:
             logger.exception("Failed to write plugin %s", file_path)
+            if prepared.temp_dir is not None:
+                shutil.rmtree(prepared.temp_dir, ignore_errors=True)
             return False, f"无法写入插件文件: {exc}"
+        finally:
+            if prepared.temp_dir is not None and prepared.temp_dir.exists():
+                shutil.rmtree(prepared.temp_dir, ignore_errors=True)
 
         record: RemotePluginRecord = RemotePluginRecord(
             name=validation.plugin_name,
@@ -268,6 +280,7 @@ class RemotePluginManager:
             description=description,
             dependencies=list(dependencies),
             checksum=prepared.checksum,
+            artifact_type=prepared.artifact_type,
             history=history,
         )
         self._registry.append(record)
@@ -281,8 +294,7 @@ class RemotePluginManager:
             return False, "未在注册表中找到该插件"
         file_path = Path(record["file_path"])
         try:
-            if file_path.exists():
-                file_path.unlink()
+            self._remove_artifact(file_path)
         except OSError as exc:
             logger.exception("Failed to remove plugin file %s", file_path)
             return False, f"无法删除插件文件: {exc}"
@@ -325,6 +337,69 @@ class RemotePluginManager:
             return False, message
         return self.commit_install(prepared, replace_existing=True)
 
+    def _prepare_from_code(
+        self,
+        url: str,
+        content: str,
+        *,
+        artifact_type: ArtifactType = "file",
+        temp_dir: Path | None = None,
+        package_root: Path | None = None,
+        validation: RemoteValidationResult | None = None,
+    ) -> tuple[bool, PreparedRemotePlugin | None, str]:
+        validation = validation or self._validate_plugin_code(content)
+        if not validation.valid:
+            if temp_dir is not None:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            return False, None, validation.reason or "插件验证失败"
+        assert validation.plugin_name is not None
+        assert validation.plugin_type is not None
+
+        metadata = parse_plugin_metadata(content)
+        if "dependencies" not in metadata:
+            metadata["dependencies"] = []
+        checksum = calculate_checksum(content)
+        prepared = PreparedRemotePlugin(
+            url=url,
+            code=content,
+            validation=validation,
+            metadata=metadata,
+            checksum=checksum,
+            artifact_type=artifact_type,
+            temp_dir=temp_dir,
+            package_root=package_root,
+        )
+        return True, prepared, ""
+
+    def _prepare_archive(self, url: str, payload: bytes) -> tuple[bool, PreparedRemotePlugin | None, str]:
+        temp_dir = Path(tempfile.mkdtemp(prefix="umd_remote_", dir=str(self._plugin_dir)))
+        try:
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                archive.extractall(temp_dir)
+        except zipfile.BadZipFile:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return False, None, "ZIP 包损坏或不受支持"
+
+        located = self._locate_plugin_entry(temp_dir)
+        if located is None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return False, None, "ZIP 包中未找到插件类"
+        entry_path, code, validation = located
+        package_root = self._determine_package_root(temp_dir)
+        success, prepared, message = self._prepare_from_code(
+            url,
+            code,
+            artifact_type="package",
+            temp_dir=temp_dir,
+            package_root=package_root,
+            validation=validation,
+        )
+        if not success or prepared is None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return False, None, message
+        prepared.filename = entry_path.name
+        return True, prepared, ""
+
     def list_history(self, plugin_name: str) -> list[RemotePluginHistoryEntry]:
         record = self.get_record(plugin_name)
         if record is None:
@@ -357,7 +432,12 @@ class RemotePluginManager:
         updated_history = [item for item in updated_history if item["checksum"] != target_entry["checksum"]]
 
         try:
-            shutil.copy2(snapshot_path, Path(record["file_path"]))
+            destination = Path(record["file_path"])
+            self._remove_artifact(destination)
+            if snapshot_path.is_dir():
+                shutil.copytree(snapshot_path, destination)
+            else:
+                shutil.copy2(snapshot_path, destination)
         except OSError as exc:
             logger.exception("Failed to rollback plugin %s", plugin_name)
             return False, f"回滚失败: {exc}"
@@ -368,20 +448,26 @@ class RemotePluginManager:
         record["description"] = target_entry["description"]
         record["dependencies"] = list(target_entry.get("dependencies", []))
         record["checksum"] = target_entry["checksum"]
+        record["artifact_type"] = target_entry.get("artifact_type", record.get("artifact_type", "file"))
         record["history"] = updated_history
         self._save_registry()
         return True, f"已回滚 {plugin_name} 至 {target_entry['version']}"
 
     # --- Validation helpers ---
 
-    def _download(self, url: str) -> str:
+    def _download_text(self, url: str) -> str:
+        return self._download_bytes(url).decode("utf-8")
+
+    def _download_bytes(self, url: str) -> bytes:
         with urlopen(url, timeout=30) as response:  # noqa: S310 - intended external download
-            data = response.read()
-            return data.decode("utf-8")
+            return response.read()
 
     def _is_valid_github_url(self, url: str) -> bool:
-        pattern = rf"^https://{RAW_GITHUB_HOST}/[\w-]+/[\w.-]+/.+\.py$"
+        pattern = rf"^https://{RAW_GITHUB_HOST}/[\w-]+/[\w.-]+/.+\.(py|zip)$"
         return bool(re.match(pattern, url))
+
+    def _is_archive_url(self, url: str) -> bool:
+        return url.lower().endswith(".zip")
 
     def _is_allowed_source(self, url: str) -> bool:
         return any(url.startswith(prefix) for prefix in self._allowed_sources)
@@ -409,6 +495,17 @@ class RemotePluginManager:
     def _remove_record(self, plugin_name: str) -> None:
         self._registry = [record for record in self._registry if record["name"] != plugin_name]
 
+    def _remove_artifact(self, path: Path) -> None:
+        try:
+            if not path.exists():
+                return
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except OSError as exc:
+            logger.debug("Failed to remove artifact %s: %s", path, exc)
+
     def _archive_record(self, record: RemotePluginRecord) -> list[RemotePluginHistoryEntry]:
         file_path = Path(record["file_path"])
         snapshot_path = ""
@@ -419,7 +516,10 @@ class RemotePluginManager:
                 timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
                 snapshot_name = f"{timestamp}_{file_path.name}"
                 destination = history_dir / snapshot_name
-                shutil.copy2(file_path, destination)
+                if file_path.is_dir():
+                    shutil.copytree(file_path, destination)
+                else:
+                    shutil.copy2(file_path, destination)
                 snapshot_path = str(destination)
             except OSError as exc:
                 logger.exception("Failed to archive plugin %s: %s", record["name"], exc)
@@ -433,6 +533,7 @@ class RemotePluginManager:
             checksum=record.get("checksum", ""),
             saved_at=datetime.utcnow().isoformat(),
             file_path=snapshot_path,
+            artifact_type=self._coerce_artifact_type(record.get("artifact_type", "file")),
             display_name=record.get("display_name", record["name"]),
             author=record.get("author", "Unknown"),
             description=record.get("description", ""),
@@ -446,7 +547,7 @@ class RemotePluginManager:
 
     def _fetch_remote_version(self, url: str) -> str | None:
         try:
-            code = self._download(url)
+            code = self._download_text(url)
         except Exception as exc:  # noqa: BLE001
             logger.debug("Failed to fetch remote version from %s: %s", url, exc)
             return None
@@ -456,12 +557,37 @@ class RemotePluginManager:
             return version_value.strip()
         return None
 
+    def _locate_plugin_entry(
+        self, root: Path
+    ) -> tuple[Path, str, RemoteValidationResult] | None:
+        for candidate in sorted(root.rglob("*.py")):
+            try:
+                code = candidate.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            validation = self._validate_plugin_code(code)
+            if validation.valid:
+                return candidate, code, validation
+        return None
+
+    def _determine_package_root(self, temp_dir: Path) -> Path:
+        candidates = [path for path in temp_dir.iterdir() if path.name != "__MACOSX"]
+        if len(candidates) == 1 and candidates[0].is_dir():
+            return candidates[0]
+        return temp_dir
+
+    def _coerce_artifact_type(self, value: object) -> ArtifactType:
+        if isinstance(value, str) and value in ("file", "package"):
+            return cast(ArtifactType, value)
+        return "file"
+
     def _normalize_record(self, raw_entry: dict[str, object]) -> RemotePluginRecord | None:
         if {"name", "plugin_type", "source_url", "install_date", "file_path"}.issubset(raw_entry):
             display_name = str(raw_entry.get("display_name", raw_entry["name"]))
             dependencies = raw_entry.get("dependencies")
             if not isinstance(dependencies, list):
                 dependencies = []
+            artifact_type = self._coerce_artifact_type(raw_entry.get("artifact_type", "file"))
             history_payload = raw_entry.get("history")
             parsed_history: list[RemotePluginHistoryEntry] = []
             if isinstance(history_payload, list):
@@ -474,6 +600,7 @@ class RemotePluginManager:
                             checksum=str(item.get("checksum", "")),
                             saved_at=str(item.get("saved_at", "")),
                             file_path=str(item.get("file_path", "")),
+                            artifact_type=self._coerce_artifact_type(item.get("artifact_type", "file")),
                             display_name=str(item.get("display_name", raw_entry["name"])),
                             author=str(item.get("author", "Unknown")),
                             description=str(item.get("description", "")),
@@ -493,6 +620,7 @@ class RemotePluginManager:
                 description=str(raw_entry.get("description", "")),
                 dependencies=[str(dep) for dep in dependencies],
                 checksum=str(raw_entry.get("checksum", "")),
+                artifact_type=artifact_type,
                 history=parsed_history,
             )
         logger.debug("Skipping malformed registry entry: %s", raw_entry)

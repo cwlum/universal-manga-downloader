@@ -155,13 +155,13 @@ class PluginLoader:
     def discover(self) -> Iterator[PluginSource]:
         """Yield `PluginSource` objects for discoverable plugins."""
 
-        for file_path in self._iter_plugin_files():
-            module = self._load_module(file_path)
+        for target_path in self._iter_plugin_targets():
+            module = self._load_module(target_path)
             if module is None:
                 continue
             yield from self._iter_module_plugins(module)
 
-    def _iter_plugin_files(self) -> Iterator[Path]:
+    def _iter_plugin_targets(self) -> Iterator[Path]:
         if not self._plugin_dir.exists():
             logger.warning("Plugin directory %s does not exist", self._plugin_dir)
             return
@@ -172,19 +172,31 @@ class PluginLoader:
             if file_path.name.startswith("_") or file_path.name.startswith("."):
                 continue
             yield file_path
+        for dir_path in sorted(self._plugin_dir.iterdir()):
+            if not dir_path.is_dir():
+                continue
+            if dir_path.name.startswith("_") or dir_path.name.startswith("."):
+                continue
+            if not (dir_path / "__init__.py").exists():
+                continue
+            yield dir_path
 
-    def _load_module(self, file_path: Path) -> ModuleType | None:
-        module_name = f"{self._plugin_dir.name}.{file_path.stem}"
-        spec = importlib.util.spec_from_file_location(module_name, file_path)
+    def _load_module(self, path: Path) -> ModuleType | None:
+        if path.is_dir():
+            module_name = f"{self._plugin_dir.name}.{path.name}"
+            spec = importlib.util.spec_from_file_location(module_name, path / "__init__.py")
+        else:
+            module_name = f"{self._plugin_dir.name}.{path.stem}"
+            spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:
-            logger.warning("Skipping plugin %s: unable to create module spec", file_path)
+            logger.warning("Skipping plugin %s: unable to create module spec", path)
             return None
 
         module = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(module)
         except Exception:  # noqa: BLE001 - surface plugin loader errors
-            logger.exception("Failed to load plugin module %s", file_path)
+            logger.exception("Failed to load plugin module %s", path)
             return None
         return module
 

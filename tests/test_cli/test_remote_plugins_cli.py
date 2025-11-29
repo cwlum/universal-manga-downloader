@@ -13,31 +13,39 @@ class StubManager:
         self.replace_flags: list[bool] = []
         self.history_calls: list[str] = []
         self.rollback_calls: list[tuple[str, str | None, str | None]] = []
-
-    # --- helpers used by tests ---
-    def list_installed(self) -> list[dict[str, str]]:
-        return [
-            {
+        self.records: dict[str, dict[str, object]] = {
+            "RemoteSampleParser": {
                 "name": "RemoteSampleParser",
                 "display_name": "Remote Sample Parser",
                 "plugin_type": "parser",
                 "version": "1.2.3",
                 "source_url": "https://raw.githubusercontent.com/org/repo/main/plugin.py",
+                "dependencies": ["requests>=2.0.0"],
             }
-        ]
+        }
+
+    # --- helpers used by tests ---
+    def list_installed(self) -> list[dict[str, str]]:
+        record = self.records["RemoteSampleParser"].copy()
+        return [record]
 
     def prepare_install(self, url: str):  # pragma: no cover - trivial tuple
         self.prepare_calls.append(url)
-        return True, SimpleNamespace(), "ready"
+        prepared = SimpleNamespace(validation=SimpleNamespace(plugin_name="RemoteSampleParser"))
+        return True, prepared, "ready"
 
     def commit_install(self, _prepared: object, replace_existing: bool = False):  # pragma: no cover - trivial tuple
         self.replace_flags.append(replace_existing)
         return True, "installed"
 
+    def get_record(self, name: str):  # pragma: no cover - trivial helper
+        return self.records.get(name)
+
 
 def test_cli_plugins_list(monkeypatch, capsys) -> None:
     stub = StubManager()
     monkeypatch.setattr(umd_cli, "_get_remote_plugin_manager", lambda: stub)
+    monkeypatch.setattr(umd_cli.DependencyManager, "missing", lambda deps: [])
 
     result = umd_cli.main(["plugins", "list"])
 
@@ -49,6 +57,7 @@ def test_cli_plugins_list(monkeypatch, capsys) -> None:
 def test_cli_plugins_install_supports_force(monkeypatch) -> None:
     stub = StubManager()
     monkeypatch.setattr(umd_cli, "_get_remote_plugin_manager", lambda: stub)
+    monkeypatch.setattr(umd_cli.DependencyManager, "missing", lambda deps: [])
 
     result = umd_cli.main(
         [
@@ -62,3 +71,16 @@ def test_cli_plugins_install_supports_force(monkeypatch) -> None:
     assert result == 0
     assert stub.prepare_calls == ["https://raw.githubusercontent.com/org/repo/main/remote_sample.py"]
     assert stub.replace_flags == [True]
+
+
+def test_cli_install_deps(monkeypatch, capsys) -> None:
+    stub = StubManager()
+    monkeypatch.setattr(umd_cli, "_get_remote_plugin_manager", lambda: stub)
+    monkeypatch.setattr(umd_cli.DependencyManager, "missing", lambda deps: deps)
+    monkeypatch.setattr(umd_cli.DependencyManager, "install", lambda deps: (True, "依赖安装完成"))
+
+    result = umd_cli.main(["plugins", "install-deps", "RemoteSampleParser"])
+
+    assert result == 0
+    captured = capsys.readouterr().out
+    assert "依赖安装完成" in captured
