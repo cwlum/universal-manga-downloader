@@ -29,9 +29,26 @@ def validate_plugin(file_path: Path) -> tuple[bool, list[str]]:
     except SyntaxError as e:
         errors.append(f"Syntax error: {e}")
 
-    # Check for future annotations
-    if not content.startswith("from __future__ import annotations"):
-        errors.append("Missing 'from __future__ import annotations' at top")
+    # Check for future annotations (allow docstring before it)
+    lines = content.split('\n')
+    has_future_import = False
+    for i, line in enumerate(lines[:20]):  # Check first 20 lines
+        stripped = line.strip()
+        if stripped.startswith("from __future__ import annotations"):
+            has_future_import = True
+            # Ensure it's before other imports (except docstring)
+            if i > 0:
+                # Check that only docstring/comments/blank lines come before it
+                for prev_line in lines[:i]:
+                    prev_stripped = prev_line.strip()
+                    if prev_stripped and not prev_stripped.startswith(('#', '"""', "'''", '"', "'")):
+                        if 'import' in prev_stripped:
+                            errors.append("'from __future__ import annotations' must be before other imports")
+                            break
+            break
+
+    if not has_future_import:
+        errors.append("Missing 'from __future__ import annotations'")
 
     # Check metadata docstring
     if not re.search(r'""".*?Name:.*?"""', content, re.DOTALL):
