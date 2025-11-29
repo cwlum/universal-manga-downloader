@@ -15,6 +15,7 @@ from typing import Any
 from manga_downloader import configure_logging
 from manga_downloader import main as launch_gui
 from plugins.base import PluginManager
+from plugins.dependency_manager import DependencyManager
 from plugins.remote_manager import RemotePluginManager
 from utils.http_client import get_sanitized_proxies
 
@@ -102,6 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
     rollback_parser.add_argument("name", help="Plugin class name to rollback.")
     rollback_parser.add_argument("--version", help="Target version to restore.")
     rollback_parser.add_argument("--checksum", help="Specific checksum snapshot to restore.")
+
+    install_deps_parser = plugins_subparsers.add_parser(
+        "install-deps",
+        help="Install missing dependencies for a remote plugin.",
+    )
+    install_deps_parser.add_argument("name", help="Plugin class name to process.")
 
     return parser
 
@@ -349,6 +356,8 @@ def _handle_plugins_command(args: argparse.Namespace) -> int:
         return _plugins_cmd_history(manager, args.name, args.limit)
     if command == "rollback":
         return _plugins_cmd_rollback(manager, args.name, args.version, args.checksum)
+    if command == "install-deps":
+        return _plugins_cmd_install_deps(manager, args.name)
     print("Unknown plugins subcommand", command)
     return 1
 
@@ -383,6 +392,8 @@ def _plugins_cmd_install(manager: RemotePluginManager, url: str, *, replace: boo
         return 1
     success, commit_message = manager.commit_install(prepared, replace_existing=replace)
     print(commit_message)
+    if success and prepared.validation.plugin_name:
+        _report_missing_dependencies(manager, prepared.validation.plugin_name)
     return 0 if success else 1
 
 
@@ -423,6 +434,8 @@ def _plugins_cmd_update(manager: RemotePluginManager, names: list[str], update_a
         print(message)
         if not success:
             exit_code = 1
+        else:
+            _report_missing_dependencies(manager, plugin_name)
     return exit_code
 
 
@@ -451,6 +464,36 @@ def _plugins_cmd_rollback(
     success, message = manager.rollback_plugin(name, version=version, checksum=checksum)
     print(message)
     return 0 if success else 1
+
+
+def _plugins_cmd_install_deps(manager: RemotePluginManager, name: str) -> int:
+    record = manager.get_record(name)
+    if record is None:
+        print("未找到插件")
+        return 1
+    deps = record.get("dependencies", [])
+    if not deps:
+        print("插件未声明依赖。")
+        return 0
+    missing = DependencyManager.missing(deps)
+    if not missing:
+        print("所有依赖均已满足。")
+        return 0
+    success, message = DependencyManager.install(missing)
+    print(message)
+    return 0 if success else 1
+
+
+def _report_missing_dependencies(manager: RemotePluginManager, plugin_name: str) -> None:
+    record = manager.get_record(plugin_name)
+    if record is None:
+        return
+    deps = record.get("dependencies", [])
+    if not deps:
+        return
+    missing = DependencyManager.missing(deps)
+    if missing:
+        print(f"⚠️  依赖未满足: {', '.join(missing)} (运行 'umd plugins install-deps {plugin_name}' 安装)")
 
 
 def _get_version() -> str:

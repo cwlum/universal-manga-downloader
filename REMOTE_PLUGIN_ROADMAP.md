@@ -34,7 +34,7 @@
 | - [x] ~~v0.2 安全+UX~~ | 完成 | 2025-11-29 | Metadata/Checksum、白名单、Beta Flag | v0.1 ✔ |
 | - [x] ~~v0.3 更新机制~~ | 完成 | 2025-11-29 | Version Manager、历史记录、回滚 | v0.2 ✔ |
 | - [ ] v0.4 插件市场 | 开发中 | 2026-01-05 | 仓库索引 & UI、市集接口 | `PLUGIN_REPOSITORY_STRUCTURE` Phase 3 |
-| - [ ] v0.5 依赖+多文件 | 规划中 | 2026-01-20 | Dependency Manager、ZIP 包支持 | v0.4 ✔ |
+| - [ ] v0.5 依赖+多文件 | 开发中 | 2026-01-20 | Dependency Manager、ZIP 包支持 | v0.4 ✔ |
 
 相关 wiki：`PLUGIN_REPOSITORY_STRUCTURE.md` 负责外部仓库、网站与自动化，两个文档需要同步更新交付状态。
 
@@ -964,6 +964,7 @@ class SettingsTab:
       "id": "mangadex-enhanced",
       "name": "MangaDex Enhanced Parser",
       "type": "parser",
+      "artifact_type": "file",
       "author": "community-dev",
       "version": "2.0.0",
       "description": "增强版 MangaDex 解析器，支持多语言和高级筛选",
@@ -985,6 +986,7 @@ class SettingsTab:
       "id": "epub-converter",
       "name": "EPUB Converter",
       "type": "converter",
+      "artifact_type": "file",
       "author": "ebook-lover",
       "version": "1.5.0",
       "description": "将章节转换为 EPUB 电子书格式",
@@ -1454,15 +1456,15 @@ Dependencies: requests>=2.28.0
 
 #### 功能清单
 - [x] 依赖管理
-  - [ ] 自动检测缺失的依赖包
-  - [ ] 一键安装依赖（使用 pip）
+  - [x] 自动检测缺失的依赖包
+  - [x] 一键安装依赖（使用 pip）
   - [ ] 虚拟环境隔离（可选）
   - [ ] 依赖冲突检测
 - [x] 多文件插件
-  - [ ] 支持插件包（文件夹）
-  - [ ] ZIP 包下载和解压
-  - [ ] `__init__.py` 入口点支持
-  - [ ] 资源文件处理（配置、图片等）
+  - [x] 支持插件包（文件夹）
+  - [x] ZIP 包下载和解压
+  - [x] `__init__.py` 入口点支持
+  - [x] 资源文件处理（复制整个目录树）
 - [x] 高级功能
   - [ ] 插件配置界面（每个插件可定义设置）
   - [ ] 插件间通信（事件系统）
@@ -1479,8 +1481,8 @@ Dependencies: requests>=2.28.0
 - 事件系统文档化至少两个示例场景（如下载前后钩子），并提供最少一个示例插件验证通信流程。
 
 #### 迭代任务清单（v0.5）
-- [ ] Dependency Manager + CLI `umd plugins --install-deps`，与 GUI dialog 共享实现。
-- [ ] ZIP / 多文件插件安装流程（含解压、入口验证、签名校验）。
+- [x] Dependency Manager + CLI `umd plugins --install-deps`，与 GUI dialog 共享实现。
+- [x] ZIP / 多文件插件安装流程（含解压、入口验证、签名校验）。
 - [ ] 插件配置/事件总线 API（文档 + 示例插件 + tests）。
 - [ ] `PLUGIN_REPOSITORY_STRUCTURE` Phase 4：在仓库中标识多文件插件、依赖声明与信任等级。
 

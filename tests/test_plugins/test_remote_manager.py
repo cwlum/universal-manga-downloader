@@ -38,10 +38,36 @@ class RemoteSampleParser(BasePlugin):
 
 UPDATED_PLUGIN_CODE = PLUGIN_CODE.replace("Version: 1.2.3", "Version: 2.0.0")
 
+PACKAGE_PLUGIN_CODE = '''"""
+Universal Manga Downloader Plugin
+
+Name: Remote Package Parser
+Author: Zip Test
+Version: 0.5.0
+Description: Example multi-file parser.
+Dependencies: requests>=2.0.0
+"""
+
+from __future__ import annotations
+
+from plugins.base import BasePlugin, ParsedChapter
+
+
+class RemotePackageParser(BasePlugin):
+    def get_name(self) -> str:
+        return "RemotePackage"
+
+    def can_handle(self, url: str) -> bool:
+        return url.endswith("/zip")
+
+    def parse(self, soup, url: str) -> ParsedChapter | None:  # pragma: no cover - example
+        return None
+'''
+
 
 class DummyResponse:
-    def __init__(self, payload: str) -> None:
-        self._payload = payload.encode("utf-8")
+    def __init__(self, payload: str | bytes) -> None:
+        self._payload = payload if isinstance(payload, bytes) else payload.encode("utf-8")
 
     def read(self) -> bytes:
         return self._payload
@@ -53,7 +79,7 @@ class DummyResponse:
         return None
 
 
-def _mock_urlopen(payload: str) -> Callable[[str, int], DummyResponse]:
+def _mock_urlopen(payload: str | bytes) -> Callable[[str, int], DummyResponse]:
     def _open(_url: str, timeout: int = 30) -> DummyResponse:  # pragma: no cover - simple lambda
         return DummyResponse(payload)
 
@@ -74,6 +100,17 @@ class SequentialOpener:
         return DummyResponse(payload)
 
 
+def _build_zip_payload() -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("remote_package/__init__.py", PACKAGE_PLUGIN_CODE)
+        archive.writestr("remote_package/utils.py", "HELPER = True")
+    return buffer.getvalue()
+
+
 def test_prepare_and_commit_remote_plugin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
     monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(PLUGIN_CODE))
@@ -90,6 +127,7 @@ def test_prepare_and_commit_remote_plugin(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert registry[0]["version"] == "1.2.3"
     assert registry[0]["dependencies"] == ["Pillow>=10"]
     assert (tmp_path / "remote_sample.py").exists()
+    assert registry[0]["artifact_type"] == "file"
 
 
 def test_install_rejects_invalid_url(tmp_path: Path) -> None:
@@ -177,3 +215,18 @@ def test_history_and_rollback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     assert record["version"] == "1.2.3"
     assert record["history"]
     assert record["history"][0]["version"] == "2.0.0"
+
+
+def test_install_zip_plugin(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
+    zip_payload = _build_zip_payload()
+    monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(zip_payload))
+
+    success, message = manager.install_from_url("https://raw.githubusercontent.com/org/repo/main/remote_package.zip")
+    assert success, message
+    record = manager.get_record("RemotePackageParser")
+    assert record is not None
+    assert record["artifact_type"] == "package"
+    plugin_dir = Path(record["file_path"])
+    assert plugin_dir.is_dir()
+    assert (plugin_dir / "__init__.py").exists()

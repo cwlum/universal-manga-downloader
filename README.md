@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.8-orange)
+![Version](https://img.shields.io/badge/version-1.3.9-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
@@ -8,11 +8,11 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.8)
+## Highlights (v1.3.9)
 
-- **Rollback-ready remote plugins** — every update now snapshots the previous version, exposes history in Settings, and adds a one-click rollback command for emergencies.
-- **`umd plugins …` CLI suite** — manage installs, check updates, batch upgrade, inspect history, and rollback headlessly (ideal for CI or remote shells).
-- **Plugin Market preview (v0.4 groundwork)** — a new Settings section syncs the official repository index, supports search/filter/sort, and lets you install community plugins without pasting URLs.
+- **Dependency Manager (v0.5)** — Settings & CLI can inspect/install missing requirements, and the registry now tracks dependency health per plugin.
+- **Multi-file/ZIP plugins** — remote installs accept `.zip` bundles, extract them into dedicated package folders, and play nicely with rollback/history.
+- **Headless automation** — `umd plugins install-deps <Name>` complements the existing list/install/update commands for CI pipelines.
 
 ## Requirements
 
@@ -80,8 +80,8 @@ Common flags:
 ## Remote Plugins (Beta)
 
 - Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is) or use the new **Plugin Market (Preview)** panel to sync/search/filter the official index.
-- Settings → Remote Plugins exposes install/update/rollback tools plus per-source whitelists; the market view lets you install directly from curated listings.
-- Command-line fans can run `umd plugins list/install/update --all/history/rollback` for the same workflows without launching the GUI.
+- Settings → Remote Plugins exposes install/update/rollback tools **and** dependency helpers; the market view lets you install `.py` or `.zip` bundles directly from curated listings.
+- Command-line fans can run `umd plugins list/install/update --all/history/rollback/install-deps` for the same workflows without launching the GUI.
 - Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for CLI usage, safety tips, and troubleshooting.
 
 ## Troubleshooting
