@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Universal Manga Downloader Plugin
 
@@ -11,6 +9,8 @@ Repository: https://github.com/cwlum/universal-manga-downloader
 License: CC BY-NC-SA 4.0
 Dependencies: rarfile>=4.0
 """
+
+from __future__ import annotations
 
 import logging
 import shutil
