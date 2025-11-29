@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     from plugins.remote_manager import (
         PreparedRemotePlugin,
         RemotePluginHistoryEntry,
-        RemotePluginRecord,
         RemotePluginManager,
+        RemotePluginRecord,
     )
     from plugins.repository_manager import (
         PluginEntryType,
@@ -486,7 +486,7 @@ class SettingsTabMixin:
         self._refresh_plugin_settings_ui()
         self._refresh_remote_plugin_list()
 
-    def _get_selected_remote_record(self) -> tuple[str, "RemotePluginRecord"] | None:
+    def _get_selected_remote_record(self) -> tuple[str, RemotePluginRecord] | None:
         tree = getattr(self, "_remote_plugins_tree", None)
         if tree is None:
             return None

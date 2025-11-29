@@ -77,12 +77,13 @@ Common flags:
 | `config.py` | Frozen dataclass configuration (`CONFIG`) |
 | `tests/` | Pytest suites for queueing, downloads, and plugins |
 
-## Remote Plugins (Beta)
+## Community Plugins
 
-- Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is) or use the new **Plugin Market (Preview)** panel to sync/search/filter the official index.
-- Settings → Remote Plugins exposes install/update/rollback tools **and** dependency helpers; the market view lets you install `.py` or `.zip` bundles directly from curated listings.
-- Command-line fans can run `umd plugins list/install/update --all/history/rollback/install-deps` for the same workflows without launching the GUI.
-- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for CLI usage, safety tips, and troubleshooting.
+- **Browse**: Visit the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available community plugins with descriptions and installation URLs.
+- **Install**: Settings → Remote Plugins lets you paste a GitHub raw URL to install parsers or converters; the **Plugin Market (Preview)** panel syncs/searches the official index.
+- **CLI**: Run `umd plugins list/install/update --all/history/rollback/install-deps` for headless workflows.
+- **Submit**: Follow the [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) to contribute your own plugins via PR to `community-plugins/`.
+- **See also**: [WIKI_BASED_PLUGIN_REPOSITORY.md](WIKI_BASED_PLUGIN_REPOSITORY.md) for the simplified wiki-based architecture.
 
 ## Troubleshooting
 
