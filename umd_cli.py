@@ -14,6 +14,8 @@ from typing import Any
 
 from manga_downloader import configure_logging
 from manga_downloader import main as launch_gui
+from plugins.base import PluginManager
+from plugins.remote_manager import RemotePluginManager
 from utils.http_client import get_sanitized_proxies
 
 MINIMUM_PYTHON = (3, 11)
@@ -64,6 +66,43 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Display current configuration settings and exit.",
     )
+
+    subparsers = parser.add_subparsers(dest="command")
+
+    plugins_parser = subparsers.add_parser(
+        "plugins",
+        help="Manage remote plugins without launching the GUI.",
+    )
+    plugins_subparsers = plugins_parser.add_subparsers(dest="plugins_command", required=True)
+
+    plugins_subparsers.add_parser("list", help="List installed remote plugins.")
+
+    install_parser = plugins_subparsers.add_parser("install", help="Install a remote plugin from a GitHub raw URL.")
+    install_parser.add_argument("url", help="GitHub raw URL of the plugin to install.")
+    install_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing plugin with the downloaded version.",
+    )
+
+    uninstall_parser = plugins_subparsers.add_parser("uninstall", help="Uninstall a remote plugin by class name.")
+    uninstall_parser.add_argument("name", help="Plugin class name to uninstall.")
+
+    plugins_subparsers.add_parser("check-updates", help="Check all remote plugins for updates.")
+
+    update_parser = plugins_subparsers.add_parser("update", help="Update remote plugins.")
+    update_parser.add_argument("names", nargs="*", help="Specific plugin class names to update.")
+    update_parser.add_argument("--all", action="store_true", help="Update every plugin with an available update.")
+
+    history_parser = plugins_subparsers.add_parser("history", help="Show stored history for a remote plugin.")
+    history_parser.add_argument("name", help="Plugin class name to inspect.")
+    history_parser.add_argument("--limit", type=int, default=5, help="Maximum number of history entries to display (default: 5).")
+
+    rollback_parser = plugins_subparsers.add_parser("rollback", help="Rollback a plugin to a previous version.")
+    rollback_parser.add_argument("name", help="Plugin class name to rollback.")
+    rollback_parser.add_argument("--version", help="Target version to restore.")
+    rollback_parser.add_argument("--checksum", help="Specific checksum snapshot to restore.")
+
     return parser
 
 
@@ -81,6 +120,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return run_doctor()
 
     log_level: str | None = args.log_level.upper() if args.log_level else None
+
+    if args.command == "plugins":
+        configure_logging(log_level)
+        return _handle_plugins_command(args)
+
     configure_logging(log_level)
 
     if args.auto_update:
@@ -286,6 +330,127 @@ def _check_download_dir() -> bool:
     except Exception as exc:
         print(f"  ✗ Error checking directory: {exc}")
         return False
+
+
+def _handle_plugins_command(args: argparse.Namespace) -> int:
+    manager = _get_remote_plugin_manager()
+    command = args.plugins_command
+    if command == "list":
+        return _plugins_cmd_list(manager)
+    if command == "install":
+        return _plugins_cmd_install(manager, args.url, replace=args.force)
+    if command == "uninstall":
+        return _plugins_cmd_uninstall(manager, args.name)
+    if command == "check-updates":
+        return _plugins_cmd_check_updates(manager)
+    if command == "update":
+        return _plugins_cmd_update(manager, args.names, args.all)
+    if command == "history":
+        return _plugins_cmd_history(manager, args.name, args.limit)
+    if command == "rollback":
+        return _plugins_cmd_rollback(manager, args.name, args.version, args.checksum)
+    print("Unknown plugins subcommand", command)
+    return 1
+
+
+def _get_remote_plugin_manager() -> RemotePluginManager:
+    plugin_manager = PluginManager()
+    return RemotePluginManager(plugin_manager.plugin_dir)
+
+
+def _plugins_cmd_list(manager: RemotePluginManager) -> int:
+    records = manager.list_installed()
+    if not records:
+        print("No remote plugins installed.")
+        return 0
+
+    header = f"{'Name':24} {'Type':8} {'Version':10} Source"
+    print(header)
+    print("-" * len(header))
+    for record in records:
+        name = record.get("display_name", record["name"])[:24]
+        plugin_type = record.get("plugin_type", "?")
+        version = record.get("version", "?")[:10]
+        print(f"{name:24} {plugin_type:8} {version:10} {record.get('source_url', '')}")
+    return 0
+
+
+def _plugins_cmd_install(manager: RemotePluginManager, url: str, *, replace: bool = False) -> int:
+    success, prepared, message = manager.prepare_install(url)
+    if message:
+        print(message)
+    if not success or prepared is None:
+        return 1
+    success, commit_message = manager.commit_install(prepared, replace_existing=replace)
+    print(commit_message)
+    return 0 if success else 1
+
+
+def _plugins_cmd_uninstall(manager: RemotePluginManager, name: str) -> int:
+    success, message = manager.uninstall(name)
+    print(message)
+    return 0 if success else 1
+
+
+def _plugins_cmd_check_updates(manager: RemotePluginManager) -> int:
+    updates = manager.check_updates()
+    if not updates:
+        print("All remote plugins are up to date.")
+        return 0
+    print("Pending updates:")
+    for update in updates:
+        print(f"  - {update['display_name']} ({update['current']} → {update['latest']})")
+    return 0
+
+
+def _plugins_cmd_update(manager: RemotePluginManager, names: list[str], update_all: bool) -> int:
+    targets: list[str]
+    if update_all:
+        pending = manager.check_updates()
+        if not pending:
+            print("All remote plugins are up to date.")
+            return 0
+        targets = [item["name"] for item in pending]
+    else:
+        if not names:
+            print("Specify plugin names or use --all to update everything.")
+            return 1
+        targets = names
+
+    exit_code = 0
+    for plugin_name in targets:
+        success, message = manager.update_plugin(plugin_name)
+        print(message)
+        if not success:
+            exit_code = 1
+    return exit_code
+
+
+def _plugins_cmd_history(manager: RemotePluginManager, name: str, limit: int) -> int:
+    entries = manager.list_history(name)
+    if not entries:
+        print("No saved history for this plugin.")
+        return 0
+    limit = max(1, limit)
+    print(f"History for {name} (showing {min(limit, len(entries))} of {len(entries)}):")
+    for entry in entries[:limit]:
+        checksum = entry.get("checksum", "")
+        short_checksum = checksum[:12] + "…" if len(checksum) > 12 else checksum
+        print(
+            f"  - {entry.get('version', '?'):>10} | saved {entry.get('saved_at', '')} | checksum {short_checksum}"
+        )
+    return 0
+
+
+def _plugins_cmd_rollback(
+    manager: RemotePluginManager,
+    name: str,
+    version: str | None,
+    checksum: str | None,
+) -> int:
+    success, message = manager.rollback_plugin(name, version=version, checksum=checksum)
+    print(message)
+    return 0 if success else 1
 
 
 def _get_version() -> str:

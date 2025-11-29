@@ -1,6 +1,6 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.7-orange)
+![Version](https://img.shields.io/badge/version-1.3.8-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
@@ -8,11 +8,11 @@
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
-## Highlights (v1.3.7)
+## Highlights (v1.3.8)
 
-- **Remote plugin manager v0.3** — adds semantic version comparisons, remote update checks, and in-place updates with checksum validation.
-- **Settings → Remote Plugins** now features “Check Updates” / “Update Selected”, row highlighting for pending updates, and expanded whitelist controls.
-- Registry schema v2 captures version metadata per entry; tests now cover upgrade workflows and whitelist operations.
+- **Rollback-ready remote plugins** — every update now snapshots the previous version, exposes history in Settings, and adds a one-click rollback command for emergencies.
+- **`umd plugins …` CLI suite** — manage installs, check updates, batch upgrade, inspect history, and rollback headlessly (ideal for CI or remote shells).
+- **Plugin Market preview (v0.4 groundwork)** — a new Settings section syncs the official repository index, supports search/filter/sort, and lets you install community plugins without pasting URLs.
 
 ## Requirements
 
@@ -79,9 +79,10 @@ Common flags:
 
 ## Remote Plugins (Beta)
 
-- Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is).
-- Use Settings → Remote Plugins to manage the whitelist, preview metadata (name, version, dependencies), and install/uninstall community plugins.
-- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for safety tips and troubleshooting.
+- Browse the staging repository under `plugin_repository/official` (or host it on GitHub as-is) or use the new **Plugin Market (Preview)** panel to sync/search/filter the official index.
+- Settings → Remote Plugins exposes install/update/rollback tools plus per-source whitelists; the market view lets you install directly from curated listings.
+- Command-line fans can run `umd plugins list/install/update --all/history/rollback` for the same workflows without launching the GUI.
+- Registry lives in `plugins/plugin_registry.json`; refer to [`docs/REMOTE_PLUGINS.md`](docs/REMOTE_PLUGINS.md) for CLI usage, safety tips, and troubleshooting.
 
 ## Troubleshooting
 

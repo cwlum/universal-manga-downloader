@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.8] - 2025-11-29
+
+### Added
+- Remote plugin history snapshots and rollback controls (GUI + `umd plugins history/rollback`).
+- Plugin Market (Preview) with RepositoryManager sync, search/filter/sort UI, and multi-repository persistence.
+- CLI subcommands (`umd plugins list/install/uninstall/check-updates/update/history/rollback`) plus pytest coverage for remote manager, repository manager, and CLI flows.
+
+### Changed
+- Settings tab reorganized: Remote Plugins gains History dialog, and the new Plugin Market panel wires into the whitelist + installer preview pipeline.
+- Documentation and roadmaps updated for v0.3 completion (rollback/CLI) and v0.4 groundwork (market + repository sync); plugin repository structure now tracks Phase 3 as delivered.
+
+### Fixed
+- Regression coverage prevents remote plugin updates from losing previous versions and validates repository index parsing for malformed entries.
+
 ## [1.3.7] - 2025-11-29
 
 ### Added
@@ -196,7 +210,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.8...HEAD
+[1.3.8]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...v1.3.8
 [1.3.7]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...v1.3.7
 [1.3.6]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...v1.3.6
 [1.3.5]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...v1.3.5
