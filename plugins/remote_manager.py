@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 RAW_GITHUB_HOST = "raw.githubusercontent.com"
 REGISTRY_SCHEMA_VERSION = 2
 DEFAULT_ALLOWED_SOURCES = (
-    "https://raw.githubusercontent.com/umd-plugins/official/",
+    "https://raw.githubusercontent.com/cwlum/universal-manga-downloader/main/community-plugins/",
 )
 MAX_HISTORY_ENTRIES = 10
 ArtifactType = Literal["file", "package"]
