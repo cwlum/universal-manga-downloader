@@ -2,16 +2,132 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from queue import Empty, Full, LifoQueue
+from urllib.parse import urlsplit, urlunsplit
 
 import cloudscraper
+import requests  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
+
+
+def create_scraper_session() -> cloudscraper.CloudScraper:
+    """Return a configured ``cloudscraper`` session with sanitized proxy settings."""
+
+    scraper = cloudscraper.create_scraper()
+    return _configure_scraper(scraper)
+
+
+def get_sanitized_proxies() -> dict[str, str]:
+    """Expose normalized proxies for consumers that invoke subprocesses."""
+
+    return _load_effective_proxies()
+
+
+def configure_requests_session(session: requests.Session | None = None) -> requests.Session:
+    """Return a requests session that ignores broken env proxies and uses sanitized ones."""
+
+    configured = session or requests.Session()
+    proxies = get_sanitized_proxies()
+    configured.trust_env = False
+    configured.proxies.clear()
+    if proxies:
+        configured.proxies.update(proxies)
+    return configured
+
+
+def _configure_scraper(scraper: cloudscraper.CloudScraper) -> cloudscraper.CloudScraper:
+    proxies = get_sanitized_proxies()
+    scraper.trust_env = False  # Avoid inheriting macOS proxies that requests cannot parse.
+    scraper.proxies.clear()
+    if proxies:
+        scraper.proxies.update(proxies)
+    return scraper
+
+
+def _load_effective_proxies() -> dict[str, str]:
+    """Return sanitized system proxies so urllib3 can parse IPv6 addresses."""
+
+    try:
+        detected = requests.utils.get_environ_proxies("https://example.com")
+    except Exception:  # noqa: BLE001 - fallback to direct connections
+        logger.debug("Unable to inspect system proxy configuration", exc_info=True)
+        return {}
+
+    if not detected:
+        return {}
+    sanitized = _sanitize_proxies(detected)
+    if not sanitized:
+        logger.debug("System proxy configuration ignored after sanitization: %s", detected)
+    return sanitized
+
+
+def _sanitize_proxies(proxies: dict[str, str]) -> dict[str, str]:
+    sanitized: dict[str, str] = {}
+    for scheme, url in proxies.items():
+        normalized = _sanitize_proxy_url(url)
+        if not normalized:
+            continue
+        if normalized != url:
+            logger.debug("Normalized proxy %s -> %s", url, normalized)
+        sanitized[scheme] = normalized
+    return sanitized
+
+
+def _sanitize_proxy_url(proxy: str | None) -> str | None:
+    """Wrap bare IPv6 hosts in [] so urllib3 can parse them."""
+
+    if not proxy:
+        return None
+
+    proxy = proxy.strip()
+    if not proxy or "://" not in proxy:
+        return None
+
+    try:
+        parsed = urlsplit(proxy)
+    except ValueError:
+        logger.debug("Skipping invalid proxy value: %s", proxy, exc_info=True)
+        return None
+
+    netloc = parsed.netloc
+    if not netloc or netloc.startswith("[") or netloc.count(":") <= 1:
+        return proxy
+
+    userinfo = ""
+    host_port = netloc
+    if "@" in netloc:
+        userinfo, host_port = netloc.rsplit("@", 1)
+        userinfo += "@"
+
+    if host_port.startswith("["):
+        return proxy
+
+    host = host_port
+    port = ""
+    if host_port.count(":") >= 2:
+        candidate_host, _, candidate_port = host_port.rpartition(":")
+        if candidate_port.isdigit() and candidate_host:
+            host = candidate_host
+            port = candidate_port
+
+    try:
+        ipaddress.IPv6Address(host)
+    except ValueError:
+        return proxy
+
+    bracketed = f"[{host}]"
+    if port:
+        bracketed = f"{bracketed}:{port}"
+
+    new_netloc = f"{userinfo}{bracketed}"
+    return urlunsplit((parsed.scheme, new_netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 class ScraperPool:
@@ -81,7 +197,7 @@ class ScraperPool:
 
             # Timeout expired - create transient scraper as fallback
             logger.warning("Scraper pool wait timeout after %.1fs, creating transient scraper", wait_time)
-            return cloudscraper.create_scraper()
+            return create_scraper_session()
 
         finally:
             with self._lock:
@@ -138,7 +254,7 @@ class ScraperPool:
             if self._max_size == 0 or self._created < self._max_size:
                 self._created += 1
                 logger.debug("Creating scraper %d/%d", self._created, self._max_size)
-                return cloudscraper.create_scraper()
+                return create_scraper_session()
         return None
 
     def get_stats(self) -> dict[str, int]:
@@ -161,4 +277,4 @@ class ScraperPool:
             logger.debug("Failed to close scraper cleanly", exc_info=True)
 
 
-__all__ = ["ScraperPool"]
+__all__ = ["ScraperPool", "configure_requests_session", "create_scraper_session", "get_sanitized_proxies"]

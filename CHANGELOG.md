@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2025-11-29
+
+### Added
+- Regression tests for HTTP helper proxy sanitization, MangaDex service wiring, and CLI auto-update env handling.
+
+### Changed
+- Unified HTTP stack so CloudScraper, MangaDex `requests.Session`, and CLI upgrade routines all disable `trust_env` and inject sanitized IPv6-aware proxies.
+- Release documentation (README badges/highlights) refreshed for v1.3.4.
+
+### Fixed
+- `Bato`/`MangaDex` searches failing with `Failed to parse: http://::1:6152` whenever macOS reports loopback proxies.
+- `umd --auto-update` pip reinstalls aborting with proxy parse errors.
+
 ## [1.3.3] - 2025-11-26
 
 ### Added
@@ -141,7 +154,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...HEAD
+[1.3.4]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...v1.3.4
 [1.3.3]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.2...v1.3.3
 [1.3.2]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.1...v1.3.2
 [1.3.1]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.0...v1.3.1
