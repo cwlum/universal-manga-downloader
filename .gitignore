@@ -39,7 +39,6 @@ plugins/*.py
 !plugins/metadata_parser.py
 !plugins/pdf_converter.py
 !plugins/remote_manager.py
-!plugins/repository_manager.py
 !plugins/version_manager.py
 
 # Ignore plugin directories (for multi-file remote plugins)
