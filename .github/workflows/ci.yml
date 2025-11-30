@@ -92,13 +92,28 @@ jobs:
         run: pip-audit -r requirements.txt
 
   test-pytest:
-    name: Test (pytest + coverage)
-    runs-on: ubuntu-latest
+    name: Test (pytest) [${{ matrix.os }} / py${{ matrix.python-version }}]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     needs:
       - lint-ruff
       - lint-mypy
       - security-scan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11"
+            coverage: true
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.11"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -106,7 +121,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
           cache: "pip"
           cache-dependency-path: |
             requirements.txt
@@ -118,16 +133,23 @@ jobs:
           python -m pip install -e .
           python -m pip install pytest coverage
 
+      - name: Run pytest
+        if: ${{ matrix.coverage != 'true' }}
+        run: pytest tests/ -v --tb=short -m "not performance"
+
       - name: Run pytest with coverage
+        if: ${{ matrix.coverage == 'true' }}
         run: |
           coverage run -m pytest tests/ -v --tb=short -m "not performance"
           coverage xml
 
       - name: Publish coverage summary
+        if: ${{ matrix.coverage == 'true' }}
         run: |
           coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage artifact
+        if: ${{ matrix.coverage == 'true' }}
         uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ github.sha }}

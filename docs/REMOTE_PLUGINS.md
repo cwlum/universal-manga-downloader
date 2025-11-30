@@ -1,13 +1,12 @@
 # Remote Plugin Installation Guide
 
-Universal Manga Downloader v1.3.9 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
+Universal Manga Downloader v1.4.0 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Safety Checklist](#safety-checklist)
 - [Registry, History & Bundles](#registry-history--bundles)
-- [Plugin Market (Preview)](#plugin-market-preview)
 - [CLI Management](#cli-management)
 - [Troubleshooting](#troubleshooting)
 - [Removing Plugins](#removing-plugins)
@@ -18,11 +17,14 @@ Universal Manga Downloader v1.3.9 extends the remote plugin workflow with metada
 
 ## Quick Start
 
-1. **Find a plugin** – either browse the official repo (`plugin_repository/official`) or open **Settings → Plugin Market (Preview)** and click **Sync Repositories** to fetch the curated index.
-2. **Pick a source** – install directly from the market (search/filter/sort, then double-click) or copy any GitHub Raw URL.
-3. **Open the app** – use Settings → Remote Plugins (Beta) for manual URLs/rollback/whitelists.
-4. **Preview & install** – every install opens a metadata dialog (name, version, dependencies, checksum) before writing to disk.
-5. **Stay updated** – click **Check Updates** (GUI) or use `umd plugins check-updates` / `umd plugins update --all` in scripts/CI.
+1. **Find a plugin** – browse the official repo (`plugin_repository/official`), wiki listings, or trusted community posts and copy the GitHub Raw URL.
+2. **Open the app** – use Settings → Remote Plugins (Beta) for manual URLs/rollback/whitelists.
+3. **Preview & install** – every install opens a metadata dialog (name, version, dependencies, checksum) before writing to disk.
+4. **Stay updated** – click **Check Updates** (GUI) or use `umd plugins check-updates` / `umd plugins update --all` in scripts/CI.
+
+> Note: The Plugin Market preview has been removed, so installations rely entirely on manual GitHub Raw URLs from trusted sources.
+
+> Need maximum flexibility? Toggle “Allow all GitHub Raw sources (use at your own risk)” in the Remote Plugins panel to bypass the whitelist—UMD will warn you before enabling this mode.
 
 > Prefer the terminal? Skip the GUI entirely with commands such as `umd plugins list`, `umd plugins install <URL>`, `umd plugins update MangadexEnhanced`, or `umd plugins rollback MangadexEnhanced --version 1.2.3`.
 
@@ -39,16 +41,6 @@ Universal Manga Downloader v1.3.9 extends the remote plugin workflow with metada
 - Metadata (display name, version, author, checksum, dependencies, artifact type) and **history snapshots** are recorded in `plugins/plugin_registry.json`.
 - Every update stores the previous version under `plugins/remote_history/<PluginName>/`; rollbacks copy back either the single file or the entire directory tree.
 - Deleting registry entries through the UI removes the corresponding file/directory and its history folder.
-
-## Plugin Market (Preview)
-
-1. Open **Settings → Plugin Market (Preview)**.
-2. Click **Sync Repositories** to fetch `index.json` from `umd-plugins/official` (or any custom repository you add).
-3. Search/filter/sort the list (type, downloads, rating, updated date) to find what you need.
-4. Double-click or select + **Install Selected** to run the standard validation/preview workflow—`.zip` bundles are extracted into their own package directories.
-5. Maintain additional repositories via the listbox (Add/Remove) — they persist in `plugins/plugin_repositories.json`.
-
-The market view is intentionally opt-in and non-blocking: if sync fails, the installed plugins remain untouched.
 
 ## CLI Management
 
@@ -90,6 +82,7 @@ All commands honor the same whitelist/registry as the GUI, making headless insta
 - Manage the whitelist via Settings → Remote Plugins → Allowed Sources.
 - Default entry: `https://raw.githubusercontent.com/umd-plugins/official/`.
 - Adding new entries requires the same host (`raw.githubusercontent.com`).
+- If you frequently install from many repositories, enable the **Allow all GitHub Raw sources** toggle (after acknowledging the warning dialog). Disable it anytime to fall back to the curated whitelist.
 
 ## Updating, Dependencies & Rolling Back
 

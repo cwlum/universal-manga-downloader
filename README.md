@@ -1,8 +1,8 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.3.9-orange)
+![Version](https://img.shields.io/badge/version-1.4.0-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--29-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--30-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/cwlum/universal-manga-downloader)
 
@@ -10,7 +10,7 @@ Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and
 
 ## Table of Contents
 
-- [Highlights (v1.3.9)](#highlights-v139)
+- [Highlights (v1.4.0)](#highlights-v140)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Launch](#launch)
@@ -21,11 +21,11 @@ Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and
 - [Contributing](#contributing)
 - [License](#license)
 
-## Highlights (v1.3.9)
+## Highlights (v1.4.0)
 
-- **Dependency Manager (v0.5)** — Settings & CLI can inspect/install missing requirements, and the registry now tracks dependency health per plugin.
-- **Multi-file/ZIP plugins** — remote installs accept `.zip` bundles, extract them into dedicated package folders, and play nicely with rollback/history.
-- **Headless automation** — `umd plugins install-deps <Name>` complements the existing list/install/update commands for CI pipelines.
+- **Remote Plugins streamlined** — the Settings tab now scrolls properly, focuses on built-in toggles plus Remote Plugins, and drops the unfinished Plugin Market panel to reduce clutter.
+- **Flexible but safe installs** — power users can enable “Allow all GitHub Raw sources (use at your own risk)” after acknowledging a warning, while curated allowed sources remain default.
+- **CI hardening** — GitHub Actions now runs pytest across Linux/macOS/Windows and Python 3.10–3.12, keeping coverage reporting on Ubuntu 3.11 for consistent metrics.
 
 ## Requirements
 
@@ -98,7 +98,8 @@ Common flags:
 UMD has a vibrant ecosystem of community-contributed parsers and converters available via the Remote Plugin system.
 
 - **Browse**: Visit the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available community plugins with descriptions and installation URLs.
-- **Install**: Settings → Remote Plugins lets you paste a GitHub raw URL to install parsers or converters; the **Plugin Market (Preview)** panel syncs/searches the official index.
+- **Install**: Settings → Remote Plugins lets you paste a GitHub Raw URL (from the wiki or any trusted source) to install parsers or converters immediately.
+- **Safety**: Keep the curated whitelist for peace of mind, or intentionally enable “Allow all GitHub Raw sources” in Settings → Remote Plugins if you accept the additional risk.
 - **CLI**: Run `umd plugins list/install/update --all/history/rollback/install-deps` for headless workflows.
 - **Develop**: Want to create your own plugin? See [PLUGINS.md](PLUGINS.md) for the development guide.
 - **Submit**: Follow the [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) to contribute your own plugins via PR to `community-plugins/`.

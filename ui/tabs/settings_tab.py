@@ -23,11 +23,6 @@ if TYPE_CHECKING:
         RemotePluginManager,
         RemotePluginRecord,
     )
-    from plugins.repository_manager import (
-        PluginEntryType,
-        PluginRepositoryEntry,
-        RepositoryManager,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +33,6 @@ class SettingsTabMixin:
     # Type hints for attributes expected from host class
     plugin_manager: PluginManager
     remote_plugin_manager: RemotePluginManager
-    repository_manager: RepositoryManager
     plugin_vars: dict[tuple[PluginType, str], tk.BooleanVar]
     chapter_workers_var: tk.IntVar
     image_workers_var: tk.IntVar
@@ -60,8 +54,35 @@ class SettingsTabMixin:
 
     def _build_settings_tab(self, parent: ttk.Frame) -> None:
         """Construct the Settings tab UI within the given parent frame."""
+        scroll_container = ttk.Frame(parent)
+        scroll_container.pack(fill="both", expand=True)
+
+        canvas = tk.Canvas(scroll_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(scroll_container, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        content_frame = ttk.Frame(canvas)
+        window_id = canvas.create_window((0, 0), window=content_frame, anchor="nw")
+
+        def _sync_scroll_region(_event: tk.Event) -> None:
+            bbox = canvas.bbox("all")
+            if bbox is not None:
+                canvas.configure(scrollregion=bbox)
+
+        def _match_canvas_width(event: tk.Event) -> None:
+            canvas.itemconfigure(window_id, width=event.width)
+
+        content_frame.bind("<Configure>", _sync_scroll_region, add="+")
+        canvas.bind("<Configure>", _match_canvas_width, add="+")
+
+        handler = getattr(self, "_mousewheel_handler", None)
+        if handler is not None:
+            handler.bind_mousewheel(content_frame, target=canvas)
+
         # --- Download Settings ---
-        settings_frame = ttk.LabelFrame(parent, text="Download Settings")
+        settings_frame = ttk.LabelFrame(content_frame, text="Download Settings")
         settings_frame.pack(fill="x", expand=False, padx=10, pady=(12, 10))
 
         # Directory selection
@@ -106,26 +127,21 @@ class SettingsTabMixin:
         self.image_workers_spinbox.bind("<FocusOut>", self._on_image_workers_change)
 
         # Plugin settings
-        plugin_section_parent = ttk.Frame(parent)
+        plugin_section_parent = ttk.Frame(content_frame)
         plugin_section_parent.pack(fill="both", expand=True, padx=10, pady=(0, 12))
         self._plugin_settings_parent = plugin_section_parent
         self._plugin_container: ttk.LabelFrame | None = None
         self._remote_plugin_frame: ttk.LabelFrame | None = None
         self._remote_plugins_tree: ttk.Treeview | None = None
         self._whitelist_listbox: tk.Listbox | None = None
-        self._repository_listbox: tk.Listbox | None = None
         self.remote_plugin_url_var = tk.StringVar()
         self._whitelist_entry_var = tk.StringVar()
-        self._repository_entry_var = tk.StringVar()
+        self._allow_all_sources_var = tk.BooleanVar(
+            value=self.remote_plugin_manager.allow_any_github_raw()
+        )
         self._pending_updates: set[str] = set()
-        self._market_tree: ttk.Treeview | None = None
-        self._market_entries: dict[str, PluginRepositoryEntry] = {}
-        self._market_search_var = tk.StringVar()
-        self._market_type_var = tk.StringVar(value="All")
-        self._market_sort_var = tk.StringVar(value="name")
         self._build_plugin_settings(plugin_section_parent)
         self._build_remote_plugin_section(plugin_section_parent)
-        self._build_plugin_market_section(plugin_section_parent)
 
     def _build_plugin_settings(self, parent: ttk.Frame) -> None:
         """Render plugin toggle controls within the settings tab."""
@@ -139,7 +155,11 @@ class SettingsTabMixin:
             return
 
         self._plugin_container = ttk.LabelFrame(parent, text="Plugins")
-        self._plugin_container.pack(fill="both", expand=True, padx=0, pady=(0, 12))
+        pack_kwargs: dict[str, object] = {"fill": "both", "expand": True, "padx": 0, "pady": (0, 12)}
+        before_widget = getattr(self, "_remote_plugin_frame", None)
+        if before_widget is not None and before_widget.winfo_manager():
+            pack_kwargs["before"] = before_widget
+        self._plugin_container.pack(**pack_kwargs)
 
         ttk.Label(
             self._plugin_container,
@@ -147,6 +167,12 @@ class SettingsTabMixin:
             wraplength=420,
             justify="left",
         ).pack(anchor="w", padx=10, pady=(8, 6))
+
+        ttk.Button(
+            self._plugin_container,
+            text="Refresh Plugins",
+            command=self._on_refresh_plugins_clicked,
+        ).pack(anchor="w", padx=10, pady=(0, 10))
 
         self.plugin_vars.clear()
         for plugin_type in PluginType:
@@ -213,6 +239,13 @@ class SettingsTabMixin:
             command=self._remove_allowed_source,
         ).pack(side="left", padx=(6, 0))
 
+        ttk.Checkbutton(
+            frame,
+            text="Allow all GitHub Raw sources (use at your own risk)",
+            variable=self._allow_all_sources_var,
+            command=self._on_toggle_allow_all_sources,
+        ).pack(anchor="w", padx=10, pady=(0, 8))
+
         tree = ttk.Treeview(frame, columns=("name", "type", "version", "source"), show="headings", height=6)
         tree.heading("name", text="Plugin")
         tree.heading("type", text="Type")
@@ -251,193 +284,6 @@ class SettingsTabMixin:
 
         self._refresh_remote_plugin_list()
         self._refresh_whitelist_ui()
-
-    def _build_plugin_market_section(self, parent: ttk.Frame) -> None:
-        frame = ttk.LabelFrame(parent, text="Plugin Market (Preview)")
-        frame.pack(fill="both", expand=True, padx=0, pady=(0, 0))
-
-        controls = ttk.Frame(frame)
-        controls.pack(fill="x", padx=10, pady=(8, 4))
-
-        ttk.Label(controls, text="Search:").pack(side="left")
-        search_entry = ttk.Entry(controls, textvariable=self._market_search_var, width=24)
-        search_entry.pack(side="left", padx=(6, 12))
-        self._market_search_var.trace_add("write", lambda *_: self._refresh_market_tree())
-
-        ttk.Label(controls, text="Type:").pack(side="left")
-        type_combo = ttk.Combobox(
-            controls,
-            state="readonly",
-            values=["All", "parser", "converter"],
-            textvariable=self._market_type_var,
-            width=10,
-        )
-        type_combo.pack(side="left", padx=(6, 12))
-        type_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_market_tree())
-
-        ttk.Label(controls, text="Sort:").pack(side="left")
-        sort_combo = ttk.Combobox(
-            controls,
-            state="readonly",
-            values=["name", "downloads", "rating", "updated_at"],
-            textvariable=self._market_sort_var,
-            width=12,
-        )
-        sort_combo.pack(side="left", padx=(6, 0))
-        sort_combo.bind("<<ComboboxSelected>>", lambda _event: self._refresh_market_tree())
-
-        tree = ttk.Treeview(
-            frame,
-            columns=("name", "type", "version", "author", "downloads", "rating"),
-            show="headings",
-            height=6,
-        )
-        tree.heading("name", text="Plugin")
-        tree.heading("type", text="Type")
-        tree.heading("version", text="Version")
-        tree.heading("author", text="Author")
-        tree.heading("downloads", text="Downloads")
-        tree.heading("rating", text="Rating")
-        tree.column("name", width=200, anchor="w")
-        tree.column("type", width=70, anchor="center")
-        tree.column("version", width=80, anchor="center")
-        tree.column("author", width=120, anchor="w")
-        tree.column("downloads", width=90, anchor="e")
-        tree.column("rating", width=70, anchor="center")
-        tree.pack(fill="both", expand=True, padx=10, pady=4)
-        tree.bind("<Double-1>", lambda _event: self._install_market_plugin())
-        self._market_tree = tree
-
-        button_row = ttk.Frame(frame)
-        button_row.pack(fill="x", padx=10, pady=(4, 8))
-        ttk.Button(button_row, text="Sync Repositories", command=self._sync_repository_index).pack(side="left")
-        ttk.Button(button_row, text="Install Selected", command=self._install_market_plugin).pack(
-            side="left", padx=(6, 0)
-        )
-
-        repos_frame = ttk.LabelFrame(frame, text="Repositories")
-        repos_frame.pack(fill="x", padx=10, pady=(0, 10))
-        listbox = tk.Listbox(repos_frame, height=3)
-        listbox.pack(fill="x", padx=4, pady=(4, 2))
-        self._repository_listbox = listbox
-
-        repo_controls = ttk.Frame(repos_frame)
-        repo_controls.pack(fill="x", padx=4, pady=(0, 4))
-        entry = ttk.Entry(repo_controls, textvariable=self._repository_entry_var)
-        entry.pack(side="left", fill="x", expand=True)
-        ttk.Button(repo_controls, text="Add", command=self._add_market_repository).pack(side="left", padx=(6, 0))
-        ttk.Button(repo_controls, text="Remove", command=self._remove_market_repository).pack(
-            side="left", padx=(6, 0)
-        )
-
-        self._refresh_repository_sources()
-        self._refresh_market_tree()
-
-    def _refresh_market_tree(self) -> None:
-        tree = getattr(self, "_market_tree", None)
-        if tree is None:
-            return
-        for item in tree.get_children():
-            tree.delete(item)
-
-        query = self._market_search_var.get().strip()
-        filter_value = self._market_type_var.get().lower()
-        sort_by = self._market_sort_var.get()
-        plugin_type: PluginEntryType | None
-        if filter_value in {"parser", "converter"}:
-            plugin_type = cast(PluginEntryType, filter_value)
-        else:
-            plugin_type = None
-        results = self.repository_manager.search(query=query, plugin_type=plugin_type, sort_by=sort_by)
-
-        self._market_entries = {}
-        for entry in results:
-            self._market_entries[entry.id] = entry
-            tree.insert(
-                "",
-                "end",
-                iid=entry.id,
-                values=(
-                    entry.name,
-                    entry.type,
-                    entry.version,
-                    entry.author,
-                    entry.downloads,
-                    f"{entry.rating:.1f}",
-                ),
-            )
-
-    def _sync_repository_index(self) -> None:
-        self._set_status("Status: 正在同步插件市场…")
-
-        def _worker() -> None:
-            success, message = self.repository_manager.sync()
-            master = cast(tk.Misc, self)
-            master.after(0, lambda: self._on_repository_sync_finished(success, message))
-
-        threading.Thread(target=_worker, daemon=True).start()
-
-    def _on_repository_sync_finished(self, success: bool, message: str) -> None:
-        self._set_status(f"Status: {message}")
-        if success:
-            self._refresh_market_tree()
-
-    def _install_market_plugin(self) -> None:
-        tree = getattr(self, "_market_tree", None)
-        if tree is None:
-            return
-        selection = tree.selection()
-        if not selection:
-            self._set_status("Status: 请选择市场中的插件。")
-            return
-        entry = self._market_entries.get(selection[0])
-        if entry is None:
-            self._set_status("Status: 无法找到所选插件。")
-            return
-        success, prepared, message = self.remote_plugin_manager.prepare_install(entry.source_url)
-        if message:
-            self._set_status(f"Status: {message}")
-        if not success or prepared is None:
-            return
-        if not self._show_remote_plugin_preview(prepared):
-            self._set_status("Status: 安装已取消。")
-            return
-        success, commit_message = self.remote_plugin_manager.commit_install(prepared)
-        self._set_status(f"Status: {commit_message}")
-        if success:
-            self.plugin_manager.load_plugins()
-            self._refresh_plugin_settings_ui()
-            self._refresh_remote_plugin_list()
-
-    def _refresh_repository_sources(self) -> None:
-        listbox = getattr(self, "_repository_listbox", None)
-        if listbox is None:
-            return
-        listbox.delete(0, tk.END)
-        for repo_url in self.repository_manager.list_repositories():
-            listbox.insert(tk.END, repo_url)
-
-    def _add_market_repository(self) -> None:
-        url = self._repository_entry_var.get().strip()
-        success, message = self.repository_manager.add_repository(url)
-        self._set_status(f"Status: {message}")
-        if success:
-            self._repository_entry_var.set("")
-            self._refresh_repository_sources()
-
-    def _remove_market_repository(self) -> None:
-        listbox = getattr(self, "_repository_listbox", None)
-        if listbox is None:
-            return
-        selection = listbox.curselection()
-        if not selection:
-            self._set_status("Status: 请选择要移除的仓库。")
-            return
-        url = listbox.get(selection[0])
-        success, message = self.repository_manager.remove_repository(url)
-        self._set_status(f"Status: {message}")
-        if success:
-            self._refresh_repository_sources()
 
     def _refresh_plugin_settings_ui(self) -> None:
         parent = getattr(self, "_plugin_settings_parent", None)
@@ -514,6 +360,7 @@ class SettingsTabMixin:
         plugin_type = PluginType.PARSER if plugin_type_value == "parser" else PluginType.CONVERTER
         if self.plugin_manager.get_record(plugin_type, plugin_name):
             self.plugin_manager.set_enabled(plugin_type, plugin_name, False)
+        self.plugin_manager.load_plugins()
         self._refresh_plugin_settings_ui()
         self._refresh_remote_plugin_list()
         self._refresh_whitelist_ui()
@@ -688,6 +535,8 @@ class SettingsTabMixin:
         listbox.delete(0, tk.END)
         for prefix in self.remote_plugin_manager.list_allowed_sources():
             listbox.insert(tk.END, prefix)
+        allow_all = self.remote_plugin_manager.allow_any_github_raw()
+        self._allow_all_sources_var.set(allow_all)
 
     def _add_allowed_source(self) -> None:
         prefix = self._whitelist_entry_var.get().strip()
@@ -710,6 +559,26 @@ class SettingsTabMixin:
         self._set_status(f"Status: {message}")
         if success:
             self._refresh_whitelist_ui()
+
+    def _on_toggle_allow_all_sources(self) -> None:
+        allow_all = bool(self._allow_all_sources_var.get())
+        if allow_all:
+            confirmed = messagebox.askyesno(
+                "安全提醒",
+                "启用该选项后，任何 raw.githubusercontent.com 的插件都可以安装，请确认来源可靠再继续。",
+            )
+            if not confirmed:
+                self._allow_all_sources_var.set(False)
+                return
+            self._set_status("Status: 已允许运行所有 GitHub Raw 来源，请谨慎。")
+        else:
+            self._set_status("Status: 已恢复仅允许白名单来源。")
+        self.remote_plugin_manager.set_allow_any_github_raw(allow_all)
+
+    def _on_refresh_plugins_clicked(self) -> None:
+        self.plugin_manager.load_plugins()
+        self._refresh_plugin_settings_ui()
+        self._set_status("Status: Plugins refreshed.")
 
     def _show_remote_plugin_preview(self, prepared: PreparedRemotePlugin) -> bool:
         master = cast(tk.Misc, self)

@@ -169,6 +169,21 @@ def test_whitelist_management(tmp_path: Path) -> None:
     assert not success  # default source cannot be removed
 
 
+def test_allow_any_github_raw_toggle(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    manager = RemotePluginManager(tmp_path)
+    assert not manager.allow_any_github_raw()
+    manager.set_allow_any_github_raw(True)
+    assert manager.allow_any_github_raw()
+    monkeypatch.setattr("plugins.remote_manager.urlopen", _mock_urlopen(PLUGIN_CODE))
+    success, prepared, message = manager.prepare_install(
+        "https://raw.githubusercontent.com/other/repo/main/remote_sample.py"
+    )
+    assert success, message
+    assert prepared is not None
+    manager2 = RemotePluginManager(tmp_path)
+    assert manager2.allow_any_github_raw()
+
+
 def test_check_updates_and_update(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     manager = RemotePluginManager(tmp_path, allowed_sources=["https://raw.githubusercontent.com/org/repo/"])
     opener = SequentialOpener([PLUGIN_CODE, UPDATED_PLUGIN_CODE, UPDATED_PLUGIN_CODE])

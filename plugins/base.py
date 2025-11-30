@@ -239,6 +239,8 @@ class PluginManager:
     def load_plugins(self) -> None:
         """Discover plugins via the configured loader and instantiate them."""
 
+        if self._records:
+            self.shutdown()
         for source in self._loader.discover():
             self._register_plugin(source.cls, source.plugin_type, source.module_name)
 

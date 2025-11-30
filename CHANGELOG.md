@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-11-30
+
+### Added
+- Remote Plugins gain an opt-in “Allow all GitHub Raw sources (use at your own risk)” toggle with persisted preference and an in-app warning for users who want maximum flexibility.
+
+### Changed
+- Settings tab now uses a scrollable container, pares down to the essentials, and keeps Remote Plugin management front and center for better usability.
+- GitHub Actions pytest stage runs on Linux/macOS/Windows and Python 3.10–3.12, while Ubuntu 3.11 continues to publish coverage for consistent metrics.
+
+### Removed
+- Plugin Market preview UI and the RepositoryManager sync/index feature; Remote Plugins now focus on manual GitHub Raw URL installs to avoid partially supported workflows.
+
 ## [1.3.9] - 2025-11-29
 
 ### Added
@@ -222,7 +234,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.9...HEAD
+[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.4.0...HEAD
+[1.4.0]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.9...v1.4.0
 [1.3.9]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.8...v1.3.9
 [1.3.8]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...v1.3.8
 [1.3.7]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...v1.3.7
