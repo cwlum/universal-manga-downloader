@@ -110,10 +110,13 @@ class RemotePluginManager:
         self._whitelist_file = self._plugin_dir / "remote_sources.json"
         self._history_dir = self._plugin_dir / "remote_history"
         self._registry: list[RemotePluginRecord] = self._load_registry()
+        self._allow_all_github_raw = False
         if allowed_sources is not None:
             self._allowed_sources = [self._ensure_trailing_slash(prefix) for prefix in allowed_sources]
         else:
-            self._allowed_sources = self._load_allowed_sources()
+            sources, allow_any = self._load_allowed_sources()
+            self._allowed_sources = sources
+            self._allow_all_github_raw = allow_any
 
     # --- Registry helpers ---
 
@@ -164,6 +167,9 @@ class RemotePluginManager:
     def list_allowed_sources(self) -> list[str]:
         return list(self._allowed_sources)
 
+    def allow_any_github_raw(self) -> bool:
+        return self._allow_all_github_raw
+
     def add_allowed_source(self, prefix: str) -> tuple[bool, str]:
         prefix = prefix.strip()
         if not prefix:
@@ -186,6 +192,10 @@ class RemotePluginManager:
         self._allowed_sources.remove(normalized)
         self._save_allowed_sources()
         return True, "已移除白名单来源"
+
+    def set_allow_any_github_raw(self, enabled: bool) -> None:
+        self._allow_all_github_raw = bool(enabled)
+        self._save_allowed_sources()
 
     # --- Installation / removal ---
 
@@ -470,6 +480,8 @@ class RemotePluginManager:
         return url.lower().endswith(".zip")
 
     def _is_allowed_source(self, url: str) -> bool:
+        if self._allow_all_github_raw and self._is_valid_github_url(url):
+            return True
         return any(url.startswith(prefix) for prefix in self._allowed_sources)
 
     def _validate_plugin_code(self, code: str) -> RemoteValidationResult:
@@ -626,21 +638,30 @@ class RemotePluginManager:
         logger.debug("Skipping malformed registry entry: %s", raw_entry)
         return None
 
-    def _load_allowed_sources(self) -> list[str]:
+    def _load_allowed_sources(self) -> tuple[list[str], bool]:
+        defaults = [self._ensure_trailing_slash(prefix) for prefix in DEFAULT_ALLOWED_SOURCES]
         if not self._whitelist_file.exists():
-            return [self._ensure_trailing_slash(prefix) for prefix in DEFAULT_ALLOWED_SOURCES]
+            return defaults, False
         try:
             data = json.loads(self._whitelist_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
-            return [self._ensure_trailing_slash(prefix) for prefix in DEFAULT_ALLOWED_SOURCES]
-        if not isinstance(data, list):
-            return [self._ensure_trailing_slash(prefix) for prefix in DEFAULT_ALLOWED_SOURCES]
-        normalized = [self._ensure_trailing_slash(str(item)) for item in data if isinstance(item, str)]
-        return normalized or [self._ensure_trailing_slash(prefix) for prefix in DEFAULT_ALLOWED_SOURCES]
+            return defaults, False
+        if isinstance(data, dict):
+            allowed_raw = data.get("allowed", [])
+            allow_any = bool(data.get("allow_any_raw_github", False))
+        else:
+            allowed_raw = data if isinstance(data, list) else []
+            allow_any = False
+        normalized = [self._ensure_trailing_slash(str(item)) for item in allowed_raw if isinstance(item, str)]
+        return (normalized or defaults, allow_any)
 
     def _save_allowed_sources(self) -> None:
         self._whitelist_file.parent.mkdir(parents=True, exist_ok=True)
-        self._whitelist_file.write_text(json.dumps(self._allowed_sources, indent=2), encoding="utf-8")
+        payload = {
+            "allowed": self._allowed_sources,
+            "allow_any_raw_github": self._allow_all_github_raw,
+        }
+        self._whitelist_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     def _ensure_trailing_slash(self, value: str) -> str:
         return value if value.endswith("/") else f"{value}/"
