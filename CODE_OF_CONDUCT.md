@@ -62,7 +62,7 @@ Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainers responsible for enforcement via:
 
 - Opening an issue on the GitLab repository: https://gitlab.com/lummuu/universal-manga-downloader/issues
-- Opening an issue on the GitHub mirror: https://github.com/cwlum/universal-manga-downloader/issues
+- Opening an issue on the GitHub mirror: https://github.com/lum-muu/universal-manga-downloader/issues
 
 All complaints will be reviewed and investigated promptly and fairly.
 

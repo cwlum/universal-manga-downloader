@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="umd",
         description="Universal Manga Downloader - A powerful manga downloader with retry logic and rate limiting.",
-        epilog="For more information, visit: https://github.com/YourRepo/universal-manga-downloader",
+        epilog="For more information, visit: https://github.com/lum-muu/universal-manga-downloader",
     )
     parser.add_argument(
         "--doctor",

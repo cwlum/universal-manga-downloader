@@ -26,7 +26,7 @@ Instead, report security issues via:
    - Provide detailed information about the vulnerability
 
 2. **Alternative**: Create a private security advisory on GitHub
-   - Go to: https://github.com/cwlum/universal-manga-downloader/security/advisories
+   - Go to: https://github.com/lum-muu/universal-manga-downloader/security/advisories
    - Click "New draft security advisory"
 
 ### What to Include

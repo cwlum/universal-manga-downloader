@@ -259,7 +259,7 @@ Name: EPUB Converter
 Author: UMD Community
 Version: 1.0.0
 Description: Convert manga chapters to EPUB format with cover support
-Repository: https://github.com/cwlum/universal-manga-downloader
+Repository: https://github.com/lum-muu/universal-manga-downloader
 License: MIT
 Dependencies: ebooklib>=0.18, pillow>=10.0.0
 """

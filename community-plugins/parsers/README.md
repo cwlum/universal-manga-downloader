@@ -4,7 +4,7 @@ Parser plugins extract manga chapters from various websites.
 
 ## Available Parsers
 
-Browse the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available parsers.
+Browse the [Plugin Wiki](https://github.com/lum-muu/universal-manga-downloader/wiki) to see all available parsers.
 
 ## Installation
 
@@ -16,4 +16,4 @@ Click "Copy URL" next to any parser in the wiki, then:
 
 ## Submission
 
-See [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) for how to submit your parser.
+See [Plugin Submission Guide](https://github.com/lum-muu/universal-manga-downloader/wiki/Plugin-Submission-Guide) for how to submit your parser.

@@ -7,16 +7,16 @@ This directory contains community-contributed plugins for Universal Manga Downlo
 Copy the raw URL of any plugin and install via UMD:
 
 1. Settings → Remote Plugins
-2. Paste the raw URL: `https://raw.githubusercontent.com/cwlum/universal-manga-downloader/main/community-plugins/parsers/your_plugin.py`
+2. Paste the raw URL: `https://raw.githubusercontent.com/lum-muu/universal-manga-downloader/main/community-plugins/parsers/your_plugin.py`
 3. Click Install
 
 ## Available Plugins
 
-See the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) for a complete list of available plugins.
+See the [Plugin Wiki](https://github.com/lum-muu/universal-manga-downloader/wiki) for a complete list of available plugins.
 
 ## Contributing
 
-See [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) in our wiki.
+See [Plugin Submission Guide](https://github.com/lum-muu/universal-manga-downloader/wiki/Plugin-Submission-Guide) in our wiki.
 
 ## Directory Structure
 

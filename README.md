@@ -4,7 +4,7 @@
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
 ![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--30-informational)
 [![GitLab](https://img.shields.io/badge/GitLab-Repository-orange?logo=gitlab)](https://gitlab.com/lummuu/universal-manga-downloader)
-[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/cwlum/universal-manga-downloader)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/lum-muu/universal-manga-downloader)
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
@@ -97,12 +97,12 @@ Common flags:
 
 UMD has a vibrant ecosystem of community-contributed parsers and converters available via the Remote Plugin system.
 
-- **Browse**: Visit the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available community plugins with descriptions and installation URLs.
+- **Browse**: Visit the [Plugin Wiki](https://github.com/lum-muu/universal-manga-downloader/wiki) to see all available community plugins with descriptions and installation URLs.
 - **Install**: Settings → Remote Plugins lets you paste a GitHub Raw URL (from the wiki or any trusted source) to install parsers or converters immediately.
 - **Safety**: Keep the curated whitelist for peace of mind, or intentionally enable “Allow all GitHub Raw sources” in Settings → Remote Plugins if you accept the additional risk.
 - **CLI**: Run `umd plugins list/install/update --all/history/rollback/install-deps` for headless workflows.
 - **Develop**: Want to create your own plugin? See [PLUGINS.md](PLUGINS.md) for the development guide.
-- **Submit**: Follow the [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) to contribute your own plugins via PR to `community-plugins/`.
+- **Submit**: Follow the [Plugin Submission Guide](https://github.com/lum-muu/universal-manga-downloader/wiki/Plugin-Submission-Guide) to contribute your own plugins via PR to `community-plugins/`.
 - **Architecture**: See [WIKI_BASED_PLUGIN_REPOSITORY.md](WIKI_BASED_PLUGIN_REPOSITORY.md) for how the community plugin repository works.
 
 ## Troubleshooting

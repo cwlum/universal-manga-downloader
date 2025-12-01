@@ -4,7 +4,7 @@ Converter plugins transform downloaded images into various formats.
 
 ## Available Converters
 
-Browse the [Plugin Wiki](https://github.com/cwlum/universal-manga-downloader/wiki) to see all available converters.
+Browse the [Plugin Wiki](https://github.com/lum-muu/universal-manga-downloader/wiki) to see all available converters.
 
 ## Installation
 
@@ -16,4 +16,4 @@ Click "Copy URL" next to any converter in the wiki, then:
 
 ## Submission
 
-See [Plugin Submission Guide](https://github.com/cwlum/universal-manga-downloader/wiki/Plugin-Submission-Guide) for how to submit your converter.
+See [Plugin Submission Guide](https://github.com/lum-muu/universal-manga-downloader/wiki/Plugin-Submission-Guide) for how to submit your converter.
