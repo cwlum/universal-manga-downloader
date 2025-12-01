@@ -19,6 +19,8 @@ dist/
 
 # Coverage artifacts
 .coverage
+coverage.xml
+htmlcov/
 
 # Remote plugins (user-downloaded plugins via Remote Plugin system)
 # These files are managed by users and should not be committed
