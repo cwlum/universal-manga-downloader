@@ -45,11 +45,10 @@ This document summarizes all improvements made to the Universal Manga Downloader
   - Disclosure policy
 
 ### 4. Issue & PR Templates
-Created templates for both GitHub and GitLab:
+Created templates for GitHub:
 - **Bug Report Template**: Structured bug reporting with environment details
 - **Feature Request Template**: Comprehensive feature proposal format
 - **Pull Request Template**: Detailed PR checklist with testing requirements
-- **Merge Request Template** (GitLab): Similar comprehensive MR format
 
 ### 5. Automated Dependency Updates
 - **Dependabot configuration** for automatic dependency updates
@@ -120,8 +119,8 @@ Added comprehensive test suites:
 **Test Results**: 105 tests passing
 
 ### 10. CI/CD Enhancements
-- CI already configured to use pinned dependencies
-- Both GitHub Actions and GitLab CI pipelines verified
+- CI configured to use pinned dependencies
+- GitHub Actions pipeline verified
 - Multi-stage pipeline: lint → security → test → performance → build
 
 ## Security Improvements

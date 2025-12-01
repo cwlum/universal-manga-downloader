@@ -13,7 +13,7 @@ Welcome! This guide gets you from clone to a working Universal Manga Downloader 
 
 1. Clone the repository
    ```bash
-   git clone https://gitlab.com/lummuu/universal-manga-downloader.git
+   git clone https://github.com/lum-muu/universal-manga-downloader.git
    cd universal-manga-downloader
    ```
 2. Create a virtual environment (recommended for PEP 668 systems)

@@ -135,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Edge case tests for error handling scenarios
 - CODE_OF_CONDUCT.md for community guidelines
 - SECURITY.md policy document with vulnerability reporting process
-- Issue and PR templates for GitHub and GitLab
+- Issue and PR templates for GitHub
 - Dependabot configuration for automated dependency updates
 - MouseWheelHandler utility class (ui/widgets.py)
 - UI data models module (ui/models.py)
@@ -191,18 +191,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Repository URLs migrated from cwlum to lummuu
-- GitLab CI YAML syntax corrections
 - Test expectations to match sanitize_filename implementation
 - Ruff and code quality issues
 
 ## [1.2.1] - 2025-11-01
 
 ### Added
-- GitLab CI/CD pipeline configuration
-- Dual repository support (GitLab primary, GitHub mirror)
+- GitHub Actions CI/CD pipeline configuration
 
 ### Changed
-- Migrated documentation from GitHub-centric to GitLab
+- Migrated to GitHub as primary repository
 - Updated onboarding documentation for new contributors
 - Improved CLI workflow and documentation
 
@@ -234,18 +232,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.4.0...HEAD
-[1.4.0]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.9...v1.4.0
-[1.3.9]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.8...v1.3.9
-[1.3.8]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.7...v1.3.8
-[1.3.7]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.6...v1.3.7
-[1.3.6]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.5...v1.3.6
-[1.3.5]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.4...v1.3.5
-[1.3.4]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.3...v1.3.4
-[1.3.3]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.2...v1.3.3
-[1.3.2]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.1...v1.3.2
-[1.3.1]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.3.0...v1.3.1
-[1.3.0]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.2.1...v1.3.0
-[1.2.1]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.2.0...v1.2.1
-[1.2.0]: https://gitlab.com/lummuu/universal-manga-downloader/compare/v1.0.0...v1.2.0
-[1.0.0]: https://gitlab.com/lummuu/universal-manga-downloader/releases/tag/v1.0.0
+[Unreleased]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.9...v1.4.0
+[1.3.9]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.8...v1.3.9
+[1.3.8]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.7...v1.3.8
+[1.3.7]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.6...v1.3.7
+[1.3.6]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.5...v1.3.6
+[1.3.5]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.4...v1.3.5
+[1.3.4]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.3...v1.3.4
+[1.3.3]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.0.0...v1.2.0
+[1.0.0]: https://github.com/lum-muu/universal-manga-downloader/releases/tag/v1.0.0
