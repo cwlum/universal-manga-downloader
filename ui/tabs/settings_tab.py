@@ -7,7 +7,7 @@ import threading
 import tkinter as tk
 from functools import partial
 from tkinter import filedialog, messagebox, ttk
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from config import CONFIG
 from plugins.base import PluginType
@@ -155,7 +155,7 @@ class SettingsTabMixin:
             return
 
         self._plugin_container = ttk.LabelFrame(parent, text="Plugins")
-        pack_kwargs: dict[str, object] = {"fill": "both", "expand": True, "padx": 0, "pady": (0, 12)}
+        pack_kwargs: dict[str, Any] = {"fill": "both", "expand": True, "padx": 0, "pady": (0, 12)}
         before_widget = getattr(self, "_remote_plugin_frame", None)
         if before_widget is not None and before_widget.winfo_manager():
             pack_kwargs["before"] = before_widget
