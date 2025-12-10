@@ -5,7 +5,7 @@ Name: CBR Converter
 Author: UMD Community
 Version: 1.0.0
 Description: Convert manga chapters to CBR (Comic Book RAR) format for comic book readers
-Repository: https://github.com/lum-muu/universal-manga-downloader
+Repository: https://github.com/0xH4KU/universal-manga-downloader
 License: CC BY-NC-SA 4.0
 Dependencies: rarfile>=4.0
 """

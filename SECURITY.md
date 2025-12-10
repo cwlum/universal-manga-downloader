@@ -21,7 +21,7 @@ We take security seriously. If you discover a security vulnerability in Universa
 Instead, report security issues via:
 
 **Create a private security advisory on GitHub:**
-- Go to: https://github.com/lum-muu/universal-manga-downloader/security/advisories
+- Go to: https://github.com/0xH4KU/universal-manga-downloader/security/advisories
 - Click "New draft security advisory"
 - Provide detailed information about the vulnerability
 
@@ -134,8 +134,8 @@ mypy manga_downloader.py config.py umd_cli.py core/ plugins/ services/ ui/ utils
 
 For any security-related questions or concerns:
 
-- **Issues**: https://github.com/lum-muu/universal-manga-downloader/issues (for general security questions)
-- **Security Advisories**: https://github.com/lum-muu/universal-manga-downloader/security/advisories (for vulnerability reports)
+- **Issues**: https://github.com/0xH4KU/universal-manga-downloader/issues (for general security questions)
+- **Security Advisories**: https://github.com/0xH4KU/universal-manga-downloader/security/advisories (for vulnerability reports)
 
 ## Acknowledgments
 

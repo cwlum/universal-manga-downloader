@@ -61,7 +61,7 @@ representative at an online or offline event.
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainers responsible for enforcement via:
 
-- Opening an issue on the GitHub repository: https://github.com/lum-muu/universal-manga-downloader/issues
+- Opening an issue on the GitHub repository: https://github.com/0xH4KU/universal-manga-downloader/issues
 
 All complaints will be reviewed and investigated promptly and fairly.
 

@@ -190,7 +190,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved chapter naming conventions
 
 ### Fixed
-- Repository URLs migrated from cwlum to lummuu
+- Repository URLs migrated from cwlum to 0xH4KU
 - Test expectations to match sanitize_filename implementation
 - Ruff and code quality issues
 
@@ -232,18 +232,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.4.0...HEAD
-[1.4.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.9...v1.4.0
-[1.3.9]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.8...v1.3.9
-[1.3.8]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.7...v1.3.8
-[1.3.7]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.6...v1.3.7
-[1.3.6]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.5...v1.3.6
-[1.3.5]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.4...v1.3.5
-[1.3.4]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.3...v1.3.4
-[1.3.3]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.2...v1.3.3
-[1.3.2]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.1...v1.3.2
-[1.3.1]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.2.1...v1.3.0
-[1.2.1]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.2.0...v1.2.1
-[1.2.0]: https://github.com/lum-muu/universal-manga-downloader/compare/v1.0.0...v1.2.0
-[1.0.0]: https://github.com/lum-muu/universal-manga-downloader/releases/tag/v1.0.0
+[Unreleased]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.9...v1.4.0
+[1.3.9]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.8...v1.3.9
+[1.3.8]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.7...v1.3.8
+[1.3.7]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.6...v1.3.7
+[1.3.6]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.5...v1.3.6
+[1.3.5]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.4...v1.3.5
+[1.3.4]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.3...v1.3.4
+[1.3.3]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.2...v1.3.3
+[1.3.2]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.1...v1.3.2
+[1.3.1]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.2.1...v1.3.0
+[1.2.1]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.2.0...v1.2.1
+[1.2.0]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.0.0...v1.2.0
+[1.0.0]: https://github.com/0xH4KU/universal-manga-downloader/releases/tag/v1.0.0

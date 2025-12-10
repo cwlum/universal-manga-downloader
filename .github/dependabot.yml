@@ -12,7 +12,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 5
     reviewers:
-      - "lummuu"
+      - "0xH4KU"
     labels:
       - "dependencies"
       - "python"
@@ -44,7 +44,7 @@ updates:
       time: "09:00"
     open-pull-requests-limit: 3
     reviewers:
-      - "lummuu"
+      - "0xH4KU"
     labels:
       - "dependencies"
       - "github-actions"
