@@ -209,9 +209,11 @@ class TestRateLimiter:
         """Test that tokens refill over time."""
         import time
 
+        # Use larger values for more reliable timing on Windows
+        # Windows time.sleep() has ~15ms precision
         limiter = RateLimiter(rate=0.05, capacity=1)  # 0.05s = 50ms between requests
         limiter.acquire(block=False)
-        time.sleep(0.06)  # Wait longer than rate
+        time.sleep(0.12)  # Wait significantly longer than rate for Windows tolerance
         assert limiter.acquire(block=False) is True
 
 
