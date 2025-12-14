@@ -17,7 +17,13 @@ from bs4 import BeautifulSoup
 
 from config import CONFIG
 from core.queue_manager import QueueState
-from plugins.base import ChapterMetadata, ParsedChapter, PluginManager, compose_chapter_name
+from plugins.base import (
+    BasePlugin,
+    ChapterMetadata,
+    ParsedChapter,
+    PluginManager,
+    compose_chapter_name,
+)
 from utils.file_utils import (
     check_disk_space_sufficient,
     cleanup_failed_download,
@@ -140,8 +146,8 @@ class DownloadTask:
                 if soup is None:
                     return
 
-                parsed_chapter = self._parse_chapter(soup, chapter_display)
-                if not parsed_chapter:
+                parsed_chapter, matched_parser = self._parse_chapter(soup, chapter_display)
+                if not parsed_chapter or not matched_parser:
                     return
 
                 title = parsed_chapter["title"]
@@ -175,6 +181,7 @@ class DownloadTask:
                     image_urls,
                     download_dir,
                     chapter_display,
+                    matched_parser,
                 )
 
                 if failed and len(failed) == len(image_urls):
@@ -275,7 +282,13 @@ class DownloadTask:
         self,
         soup: BeautifulSoup,
         chapter_display: str,
-    ) -> ParsedChapter | None:
+    ) -> tuple[ParsedChapter, BasePlugin] | tuple[None, None]:
+        """Parse chapter data using available parser plugins.
+
+        Returns:
+            A tuple of (parsed_data, parser_instance) on success,
+            or (None, None) if no suitable parser was found.
+        """
         parser_plugins = list(self.plugin_manager.iter_enabled_parsers())
         if not parser_plugins:
             self._mark_failure(
@@ -283,9 +296,10 @@ class DownloadTask:
                 chapter_display,
                 status_message="Status: Error - No parser plugins enabled.",
             )
-            return None
+            return None, None
 
         parsed_data: ParsedChapter | None = None
+        matched_parser: BasePlugin | None = None
         for parser in parser_plugins:
             parser_name = parser.get_name()
             self.ui.queue_set_status(
@@ -301,17 +315,18 @@ class DownloadTask:
             parsed_result = parser.parse(soup, self.url)
             if parsed_result:
                 parsed_data = parsed_result
+                matched_parser = parser
                 break
 
-        if not parsed_data:
+        if not parsed_data or not matched_parser:
             self._mark_failure(
                 "No suitable parser found.",
                 chapter_display,
                 status_message="Status: Error - No suitable parser found for this URL.",
             )
-            return None
+            return None, None
 
-        return parsed_data
+        return parsed_data, matched_parser
 
     def _prepare_download_dir(self, title: str, chapter: str) -> str | None:
         base_dir = self.resolve_download_dir()
@@ -339,7 +354,21 @@ class DownloadTask:
         image_urls: Sequence[str],
         download_dir: str,
         chapter_display: str,
+        parser: BasePlugin,
     ) -> list[str]:
+        """Download all images for a chapter.
+
+        Args:
+            scraper: HTTP session for downloading.
+            image_urls: List of image URLs to download.
+            download_dir: Directory to save images to.
+            chapter_display: Display name for status messages.
+            parser: The parser plugin that parsed this chapter, used for
+                fallback URL resolution when downloads fail.
+
+        Returns:
+            List of URLs that failed to download.
+        """
         self._raise_if_cancelled()
         self._wait_for_resume()
         total_images = len(image_urls)
@@ -390,7 +419,8 @@ class DownloadTask:
         if self.url:
             base_headers["Referer"] = self.url
         base_cookies = scraper.cookies.get_dict()
-        request_timeout = CONFIG.download.request_timeout
+        # Use tuple timeout: (connect_timeout, read_timeout) for better control
+        request_timeout = (CONFIG.download.connect_timeout, CONFIG.download.read_timeout)
         progress_interval = max(0.05, CONFIG.ui.progress_update_interval_ms / 1000)
         last_ui_update = 0.0
 
@@ -411,57 +441,97 @@ class DownloadTask:
             )
 
         def fetch_image(index: int, img_url: str) -> tuple[int, bool, str | None]:
+            """Download a single image, with retry and fallback URL support.
+
+            The download process:
+            1. Try the original URL with retries (fast fail on connection errors)
+            2. If all retries fail, ask the parser for a fallback URL
+            3. If a fallback URL is available, try it with fewer retries
+            4. Continue until success or no more fallback URLs available
+            """
             self.image_semaphore.acquire()
             session = self.scraper_pool.acquire()
 
             max_retries = CONFIG.download.max_retries
+            fallback_retries = CONFIG.download.fallback_max_retries
             retry_delay = CONFIG.download.retry_delay
 
-            try:
-                self._wait_for_resume()
-                if self._is_cancelled():
-                    raise DownloadCancelled
-                for attempt in range(max_retries + 1):
+            # Track the current URL (may change if fallback is used)
+            current_url = img_url
+
+            def try_download(url: str, retries: int) -> bool:
+                """Attempt to download from URL with given retry count.
+
+                Returns True on success, False on failure.
+                """
+                for attempt in range(retries + 1):
                     try:
+                        self._wait_for_resume()
+                        if self._is_cancelled():
+                            raise DownloadCancelled
+
                         with session.get(
-                            img_url,
+                            url,
                             timeout=request_timeout,
                             stream=True,
                             headers=base_headers,
                             cookies=base_cookies,
                         ) as img_response:
                             img_response.raise_for_status()
-                            file_ext = determine_file_extension(img_url, img_response)
+                            file_ext = determine_file_extension(url, img_response)
                             file_path = os.path.join(download_dir, f"{index + 1:03d}{file_ext}")
+                            # Use larger chunk size for faster downloads
                             with open(file_path, "wb") as file_handler:
-                                for chunk in img_response.iter_content(chunk_size=65536):
+                                for chunk in img_response.iter_content(chunk_size=131072):
                                     if not chunk:
                                         continue
                                     self._wait_for_resume()
                                     if self._is_cancelled():
                                         raise DownloadCancelled
                                     file_handler.write(chunk)
-                        return index, True, None
+                        return True
+
                     except (requests.RequestException, OSError) as exc:
-                        if attempt < max_retries:
-                            # Exponential backoff: 1s, 2s, 4s, ...
+                        if attempt < retries:
+                            # Quick exponential backoff: 0.5s, 1s, 2s
                             wait_time = retry_delay * (2 ** attempt)
                             logger.debug(
                                 "Retry %d/%d for image %d after %.1fs: %s",
-                                attempt + 1, max_retries, index + 1, wait_time, exc
+                                attempt + 1, retries, index + 1, wait_time, exc
                             )
                             time.sleep(wait_time)
                         else:
                             logger.warning(
                                 "Failed to download image %d from %s after %d attempts: %s",
-                                index + 1, img_url, max_retries + 1, exc
+                                index + 1, url, retries + 1, exc
                             )
-                # All retries exhausted
-                return index, False, img_url
+                return False
+
+            try:
+                # Try original URL
+                if try_download(current_url, max_retries):
+                    return index, True, None
+
+                # Original failed, try fallback URLs
+                while True:
+                    fallback_url = parser.get_image_fallback(current_url)
+                    if not fallback_url:
+                        # No more fallback URLs available
+                        return index, False, img_url
+
+                    logger.info(
+                        "Trying fallback URL for image %d: %s",
+                        index + 1, fallback_url
+                    )
+                    current_url = fallback_url
+
+                    if try_download(current_url, fallback_retries):
+                        return index, True, None
+
             except DownloadCancelled:
                 return index, False, None
             except Exception:  # noqa: BLE001 - protect thread from unexpected failures
-                logger.exception("Unexpected error downloading image %d from %s", index + 1, img_url)
+                logger.exception("Unexpected error downloading image %d from %s", index + 1, current_url)
                 return index, False, img_url
             finally:
                 self.scraper_pool.release(session)

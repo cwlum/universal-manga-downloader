@@ -1,6 +1,6 @@
 # Remote Plugin Installation Guide
 
-Universal Manga Downloader v1.4.0 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
+Universal Manga Downloader v1.4.1 extends the remote plugin workflow with metadata previews, repository sync, CLI automation, rollback support, and dependency-aware bundles. Follow these steps to safely install community plugins.
 
 ## Table of Contents
 

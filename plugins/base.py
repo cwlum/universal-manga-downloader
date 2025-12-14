@@ -57,6 +57,22 @@ class BasePlugin(ABC):
         """Hook executed right before the plugin is disabled."""
         return None
 
+    def get_image_fallback(self, failed_url: str) -> str | None:  # pragma: no cover - optional hook
+        """Return a fallback URL when the original image URL fails to download.
+
+        Override this method in subclasses to provide site-specific fallback
+        logic for unreliable image servers. For example, if a site uses multiple
+        CDN hosts (e.g., k00.example.com, n00.example.com), this method can
+        return an alternative host URL when the primary one fails.
+
+        Args:
+            failed_url: The image URL that failed to download.
+
+        Returns:
+            An alternative URL to try, or None if no fallback is available.
+        """
+        return None
+
     @staticmethod
     def sanitize_filename(name: str) -> str:
         """Return a filesystem-friendly representation of ``name``."""

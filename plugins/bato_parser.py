@@ -22,6 +22,12 @@ class BatoParser(BasePlugin):
     _IMG_HTTPS_PATTERN = re.compile(r"const\s+imgHttps\s*=\s*(\[[\s\S]*?\])\s*;", re.IGNORECASE)
     _TOKEN_PATTERN = re.compile(r"^[0-9a-z]+$")
 
+    # Bato uses multiple CDN hosts for image delivery. When one host is
+    # unreliable or returns errors, we can try alternative hosts.
+    # The pattern is: k00.domain.org -> n00.domain.org
+    # This regex matches Bato CDN hostnames like k00.mbuul.org, k05.mbxma.org, etc.
+    _CDN_HOST_PATTERN = re.compile(r"^k(\d+)\.(mb[a-z]+\.org)$")
+
     def get_name(self) -> str:
         return "Bato"
 
@@ -173,4 +179,45 @@ class BatoParser(BasePlugin):
         match = pattern.search(content)
         if match:
             return match.group(2)
+        return None
+
+    def get_image_fallback(self, failed_url: str) -> str | None:
+        """Return an alternative CDN URL when a Bato image download fails.
+
+        Bato's image servers use hostnames like k00.mbuul.org, k05.mbxma.org,
+        etc. When these fail, replacing 'k' prefix with 'n' often resolves
+        the issue (e.g., k00.mbuul.org -> n00.mbuul.org).
+
+        Args:
+            failed_url: The image URL that failed to download.
+
+        Returns:
+            URL with alternative CDN host, or None if no fallback available.
+        """
+        from urllib.parse import urlparse, urlunparse
+
+        try:
+            parsed = urlparse(failed_url)
+            host = parsed.netloc.lower()
+
+            # Check if this is a Bato CDN host (kXX.mbXXX.org pattern)
+            match = self._CDN_HOST_PATTERN.match(host)
+            if match:
+                number = match.group(1)  # e.g., "00", "05"
+                domain = match.group(2)  # e.g., "mbuul.org", "mbxma.org"
+
+                # Replace 'k' prefix with 'n' prefix
+                new_host = f"n{number}.{domain}"
+                fallback_url = urlunparse(parsed._replace(netloc=new_host))
+
+                logger.debug(
+                    "Bato image fallback: %s -> %s",
+                    host,
+                    new_host,
+                )
+                return fallback_url
+
+        except Exception:  # noqa: BLE001 - don't let fallback logic break downloads
+            logger.debug("Failed to generate fallback URL for %s", failed_url)
+
         return None

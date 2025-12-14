@@ -26,26 +26,31 @@ class DownloadConfig:
     """Configuration for download behavior."""
 
     # Worker limits
-    default_chapter_workers: int = 1
+    default_chapter_workers: int = 2
     max_chapter_workers: int = 10
     min_chapter_workers: int = 1
 
-    default_image_workers: int = 4
+    default_image_workers: int = 8
     max_image_workers: int = 32
     min_image_workers: int = 1
     max_total_image_workers: int = 48
 
     # Network timeouts (seconds)
-    request_timeout: int = 30
+    # Using tuple-style timeouts: (connect_timeout, read_timeout)
+    connect_timeout: float = 5.0   # Time to establish connection (fast fail)
+    read_timeout: float = 20.0     # Time to receive data
+    request_timeout: int = 30      # Legacy: total timeout for simple requests
     search_timeout: int = 15
     series_info_timeout: int = 20
 
     # Retry configuration
-    max_retries: int = 3
-    retry_delay: float = 1.0
+    max_retries: int = 1           # Reduced for faster fallback (will try fallback quickly)
+    retry_delay: float = 0.3       # Faster retry
+    fallback_max_retries: int = 2  # More retries on fallback (it's more likely to work)
 
     # Networking helpers
-    scraper_pool_size: int = 8
+    scraper_pool_size: int = 12    # Increased from 8 for better concurrency
+    scraper_wait_timeout: float = 10.0  # Max time to wait for available scraper
 
 
 @dataclass(frozen=True)

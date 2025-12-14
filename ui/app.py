@@ -75,7 +75,10 @@ class MangaDownloader(BrowserTabMixin, DownloadsTabMixin, SettingsTabMixin, tk.T
         self.plugin_manager = PluginManager()
         self.plugin_manager.load_plugins()
         self.remote_plugin_manager = RemotePluginManager(self.plugin_manager.plugin_dir)
-        self.scraper_pool = ScraperPool(CONFIG.download.scraper_pool_size)
+        self.scraper_pool = ScraperPool(
+            CONFIG.download.scraper_pool_size,
+            wait_timeout=CONFIG.download.scraper_wait_timeout,
+        )
         self.queue_manager = QueueManager()
 
     def _init_state(self) -> None:

@@ -1,15 +1,15 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.4.0-orange)
+![Version](https://img.shields.io/badge/version-1.4.1-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--11--30-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--12--14-informational)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/0xH4KU/universal-manga-downloader)
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
 ## Table of Contents
 
-- [Highlights (v1.4.0)](#highlights-v140)
+- [Highlights (v1.4.1)](#highlights-v141)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Launch](#launch)
@@ -20,11 +20,11 @@ Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and
 - [Contributing](#contributing)
 - [License](#license)
 
-## Highlights (v1.4.0)
+## Highlights (v1.4.1)
 
-- **Remote Plugins streamlined** — the Settings tab now scrolls properly, focuses on built-in toggles plus Remote Plugins, and drops the unfinished Plugin Market panel to reduce clutter.
-- **Flexible but safe installs** — power users can enable “Allow all GitHub Raw sources (use at your own risk)” after acknowledging a warning, while curated allowed sources remain default.
-- **CI hardening** — GitHub Actions now runs pytest across Linux/macOS/Windows and Python 3.10–3.12, keeping coverage reporting on Ubuntu 3.11 for consistent metrics.
+- **Image CDN fallback** — Bato downloads now automatically switch from unreliable `kXX.*.org` servers to `nXX.*.org` fallbacks when images fail, dramatically improving success rates.
+- **Faster downloads** — reduced timeouts, quicker retries, doubled default workers (4→8 images, 1→2 chapters), and larger chunk sizes for noticeably snappier performance.
+- **Plugin fallback API** — parser plugins can implement `get_image_fallback()` to provide site-specific CDN failover logic.
 
 ## Requirements
 

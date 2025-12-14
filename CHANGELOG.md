@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2025-12-14
+
+### Added
+- **Image CDN fallback system** — parser plugins can now provide fallback URLs when image downloads fail. BatoParser implements automatic `kXX.*.org` → `nXX.*.org` host switching for unreliable Bato CDN servers.
+- New `get_image_fallback()` method in `BasePlugin` for site-specific fallback logic.
+- Separate `fallback_max_retries` config for controlling retry behavior on fallback URLs.
+- `scraper_wait_timeout` config for controlling how long to wait for available scrapers.
+
+### Changed
+- **Performance optimizations** — significantly faster download speeds and failure recovery:
+  - Reduced `connect_timeout` from 10s to 5s for faster detection of unresponsive servers.
+  - Reduced `read_timeout` from 30s to 20s.
+  - Reduced `max_retries` from 3 to 1 on original URLs (quick switch to fallback).
+  - Reduced `retry_delay` from 1.0s to 0.3s.
+  - Increased `default_image_workers` from 4 to 8 for better parallelism.
+  - Increased `default_chapter_workers` from 1 to 2.
+  - Increased `scraper_pool_size` from 8 to 12.
+  - Increased download chunk size from 64KB to 128KB.
+- `_parse_chapter()` now returns the matched parser instance for use in fallback resolution.
+- `_download_images()` accepts parser parameter for fallback URL generation.
+
+### Fixed
+- Bato image downloads failing due to unreliable CDN servers now automatically retry with alternative hosts.
+
 ## [1.4.0] - 2025-11-30
 
 ### Added
@@ -232,7 +256,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.9...v1.4.0
 [1.3.9]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.8...v1.3.9
 [1.3.8]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.7...v1.3.8
