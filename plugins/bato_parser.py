@@ -28,12 +28,34 @@ class BatoParser(BasePlugin):
     # This regex matches Bato CDN hostnames like k00.mbuul.org, k05.mbxma.org, etc.
     _CDN_HOST_PATTERN = re.compile(r"^k(\d+)\.(mb[a-z]+\.org)$")
 
+    # Known Bato mirror domain patterns for URL detection.
+    # These patterns match various mirror sites that use the same Bato backend.
+    _KNOWN_HOSTS: frozenset[str] = frozenset({
+        # Primary domains
+        "bato.to", "batoto.in", "batoto.tv", "batotoo.com", "batotwo.com",
+        # Alternative domains
+        "mangatoto.com", "comiko.net", "batpub.com", "batread.com", "batocomic.com",
+        "readtoto.com", "kuku.to", "okok.to", "ruru.to", "xdxd.to",
+    })
+    # Short domain pattern: single letter + to.to (e.g., mto.to, xto.to)
+    _SHORT_DOMAIN_PATTERN = re.compile(r"^[a-z]to\.to$")
+
     def get_name(self) -> str:
         return "Bato"
 
     def can_handle(self, url: str) -> bool:
         parsed = urlparse(url)
         host = parsed.netloc.lower()
+        # Match known hosts exactly
+        if host in self._KNOWN_HOSTS:
+            return True
+        # Match bato.* pattern (e.g., bato.si, bato.ing, bato.cc)
+        if host.startswith("bato."):
+            return True
+        # Match short domain pattern (e.g., mto.to, xto.to)
+        if self._SHORT_DOMAIN_PATTERN.match(host):
+            return True
+        # Fallback: check if "bato" is in the host
         return "bato" in host
 
     def parse(self, soup: BeautifulSoup, url: str) -> ParsedChapter | None:

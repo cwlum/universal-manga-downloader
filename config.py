@@ -59,8 +59,14 @@ class ServiceConfig:
 
     # Bato.to service
     bato_base_url: str = "https://bato.to"
-    bato_search_path: str = "/search"
+    bato_search_path: str = "/v4x-search"
     bato_max_search_pages: int = 3
+    # Default fallback mirrors (user can add more via settings)
+    bato_default_mirrors: tuple[str, ...] = (
+        "https://bato.to",
+        "https://bato.si",
+        "https://bato.ing",
+    )
 
     # MangaDex service
     mangadex_api_base: str = "https://api.mangadex.org"

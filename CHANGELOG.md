@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2025-12-18
+
+### Added
+- **Bato mirror site management** — Users can now add, remove, and reorder Bato mirror sites via Settings. Simply paste a search URL from any mirror and the system auto-detects the search path and parameters.
+- **Separate Plugins tab** — Plugin management (local toggles, remote plugins) moved to a dedicated tab for better organization.
+- **GraphQL API support for Bato** — Search and series info now use Bato's GraphQL API (`/apo/` endpoint) for reliable data fetching, bypassing JavaScript-rendered pages.
+- New `services/bato_mirror_manager.py` for persistent mirror configuration with automatic fallback.
+
+### Changed
+- **UI reorganization** — Settings tab now focuses on download settings and mirror management; plugin settings moved to new Plugins tab.
+- BatoService rewritten to use GraphQL queries instead of HTML parsing for search (`get_content_searchComic`) and series info (`get_content_comicNode`, `get_content_chapterList`).
+- BatoParser now supports additional mirror domains including `bato.si`, `bato.ing`, and pattern-based detection for short domains like `xto.to`.
+
+### Fixed
+- Bato search returning 0 results due to Qwik framework client-side rendering.
+- Chapter listings not loading when Bato site uses JavaScript-only rendering.
+- Updated tests to match new GraphQL-based BatoService implementation.
+
 ## [1.4.1] - 2025-12-14
 
 ### Added
@@ -256,7 +274,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF export functionality
 - Basic plugin system
 
-[Unreleased]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.9...v1.4.0
 [1.3.9]: https://github.com/0xH4KU/universal-manga-downloader/compare/v1.3.8...v1.3.9

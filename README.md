@@ -1,15 +1,15 @@
 # Universal Manga Downloader
 
-![Version](https://img.shields.io/badge/version-1.4.1-orange)
+![Version](https://img.shields.io/badge/version-1.4.2-orange)
 ![License](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-yellow)
-![Last Updated](https://img.shields.io/badge/last%20updated-2025--12--14-informational)
+![Last Updated](https://img.shields.io/badge/last%20updated-2025--12--18-informational)
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/0xH4KU/universal-manga-downloader)
 
 Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and MangaDex, queues chapters, downloads page images, and converts them into PDF or CBZ archives. Everything runs locally and is extensible through parser/converter plugins discovered at runtime.
 
 ## Table of Contents
 
-- [Highlights (v1.4.1)](#highlights-v141)
+- [Highlights (v1.4.2)](#highlights-v142)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Launch](#launch)
@@ -20,11 +20,11 @@ Universal Manga Downloader (UMD) is a Tkinter desktop app that searches Bato and
 - [Contributing](#contributing)
 - [License](#license)
 
-## Highlights (v1.4.1)
+## Highlights (v1.4.2)
 
-- **Image CDN fallback** — Bato downloads now automatically switch from unreliable `kXX.*.org` servers to `nXX.*.org` fallbacks when images fail, dramatically improving success rates.
-- **Faster downloads** — reduced timeouts, quicker retries, doubled default workers (4→8 images, 1→2 chapters), and larger chunk sizes for noticeably snappier performance.
-- **Plugin fallback API** — parser plugins can implement `get_image_fallback()` to provide site-specific CDN failover logic.
+- **Bato mirror management** — Add, remove, and reorder Bato mirror sites via Settings. Paste any search URL and the system auto-detects the search path and parameters for each mirror.
+- **GraphQL API support** — Bato search and series info now use the native GraphQL API, bypassing JavaScript-rendered pages for reliable data fetching.
+- **Separate Plugins tab** — Plugin management moved to its own dedicated tab for better organization and usability.
 
 ## Requirements
 
@@ -72,7 +72,8 @@ Common flags:
 1. **Browser tab** — pick Bato or MangaDex, search for a series, and open the chapter list.
 2. **Queueing** — queue selected chapters, a range, everything, or paste a URL into Quick Queue.
 3. **Downloads tab** — watch per-chapter progress, pause/resume/cancel, and inspect status messages.
-4. **Settings tab** — pick the download directory, adjust worker counts, and enable/disable plugins.
+4. **Plugins tab** — enable/disable plugins, install remote plugins from trusted GitHub URLs.
+5. **Settings tab** — pick the download directory, adjust worker counts, and manage Bato mirror sites.
 
 ## Project Layout
 

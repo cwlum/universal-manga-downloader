@@ -2,6 +2,7 @@
 
 from ui.tabs.browser_tab import BrowserTabMixin
 from ui.tabs.downloads_tab import DownloadsTabMixin
+from ui.tabs.plugins_tab import PluginsTabMixin
 from ui.tabs.settings_tab import SettingsTabMixin
 
-__all__ = ["BrowserTabMixin", "DownloadsTabMixin", "SettingsTabMixin"]
+__all__ = ["BrowserTabMixin", "DownloadsTabMixin", "PluginsTabMixin", "SettingsTabMixin"]

@@ -23,7 +23,7 @@ from plugins.remote_manager import RemotePluginManager
 from services import BatoService, MangaDexService
 from ui.logging_utils import configure_logging
 from ui.models import QueueItem, SearchResult, SeriesChapter
-from ui.tabs import BrowserTabMixin, DownloadsTabMixin, SettingsTabMixin
+from ui.tabs import BrowserTabMixin, DownloadsTabMixin, PluginsTabMixin, SettingsTabMixin
 from ui.widgets import MouseWheelHandler, clamp_value
 from utils.file_utils import ensure_directory, get_default_download_root
 from utils.http_client import ScraperPool
@@ -32,7 +32,7 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
-class MangaDownloader(BrowserTabMixin, DownloadsTabMixin, SettingsTabMixin, tk.Tk):  # type: ignore[misc]
+class MangaDownloader(BrowserTabMixin, DownloadsTabMixin, PluginsTabMixin, SettingsTabMixin, tk.Tk):  # type: ignore[misc]
     """Main application window orchestrating search, queue, and download workflows."""
 
     def __init__(self) -> None:
@@ -153,15 +153,18 @@ class MangaDownloader(BrowserTabMixin, DownloadsTabMixin, SettingsTabMixin, tk.T
 
         self.search_tab = ttk.Frame(self.notebook)
         self.queue_tab = ttk.Frame(self.notebook)
+        self.plugins_tab = ttk.Frame(self.notebook)
         self.settings_tab = ttk.Frame(self.notebook)
 
         self.notebook.add(self.search_tab, text="Browser")
         self.notebook.add(self.queue_tab, text="Downloads")
+        self.notebook.add(self.plugins_tab, text="Plugins")
         self.notebook.add(self.settings_tab, text="Settings")
 
         # Build each tab using mixins
         self._build_browser_tab(self.search_tab)
         self._build_downloads_tab(self.queue_tab)
+        self._build_plugins_tab(self.plugins_tab)
         self._build_settings_tab(self.settings_tab)
         self._start_ui_callback_pump()
 
